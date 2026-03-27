@@ -114,8 +114,12 @@ wss.on('connection', (ws) => {
       };
 
       const answerCount = Object.keys(kviz.answers[qIdx]).length;
+      const totalPlayers = Object.keys(kviz.players).length;
       const adminWs = getAdminWs(info.pin);
       if (adminWs) sendTo(adminWs, { type: 'ANSWER_COUNT', payload: { count: answerCount } });
+      if (answerCount >= totalPlayers && totalPlayers > 0) {
+        setTimeout(() => endQuestion(info.pin, adminWs), 1500);
+      }
     }
   });
 
@@ -147,19 +151,19 @@ function advanceQuestion(pin, adminWs) {
   if (!kviz.answers[nextIdx]) kviz.answers[nextIdx] = {};
 
   const q = kviz.questions[nextIdx];
-  const qDuration = q.duration || kviz.duration; // per-question duration, fallback na globalni
   const payload = {
     qIdx: nextIdx,
     total: kviz.questions.length,
     text: q.text,
     answers: { a: q.a, b: q.b, c: q.c || '', d: q.d || '' },
-    duration: qDuration,
+    duration: q.duration || kviz.duration,
     startTime: kviz.questionStartTime
   };
 
   broadcast(pin, { type: 'QUESTION', payload });
   sendTo(adminWs, { type: 'QUESTION', payload });
 
+  const qDuration = q.duration || kviz.duration;
   kviz.timerHandle = setTimeout(() => endQuestion(pin, adminWs), qDuration * 1000);
 }
 
@@ -172,7 +176,7 @@ function endQuestion(pin, adminWs) {
   const qIdx = kviz.currentQ;
   const q = kviz.questions[qIdx];
   const correct = q.correct;
-  const dur = q.duration || kviz.duration; // per-question duration
+  const dur = q.duration || kviz.duration;
   const startTime = kviz.questionStartTime;
 
   const playerResults = {};

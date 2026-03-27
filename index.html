@@ -63,12 +63,12 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
 
 /* TIMER */
 .timer-wrap{display:flex;justify-content:center;margin-bottom:1.5rem}
-.timer-ring{transform:rotate(-90deg)}
+
 .tbg{fill:none;stroke:var(--surface2);stroke-width:8}
 .tarc{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round;
   transition:stroke-dashoffset 1s linear,stroke .4s}
 .ttxt{font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;
-  fill:var(--text);text-anchor:middle;dominant-baseline:central}
+  fill:var(--text);text-anchor:middle;}
 
 /* QUESTION */
 .q-text{font-family:'Syne',sans-serif;font-size:1.55rem;font-weight:700;
@@ -188,14 +188,6 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
         <button class="btn btn-outline btn-sm" onclick="show('player-join')">Ulogiraj se</button>
       </div>
     </div>
-    <div id="server-url-section" style="margin-top:2rem;max-width:460px;margin-left:auto;margin-right:auto;">
-      <div class="alert" style="text-align:left;margin-bottom:.5rem;">
-        ⚙️ <strong>Postavi URL servera</strong> — unesi adresu svog WebSocket servera jednom, pa zaboravi
-      </div>
-      <input type="text" id="server-url-input" placeholder="npr. wss://tvoj-server.onrender.com" style="margin-bottom:.5rem;">
-      <button class="btn btn-outline btn-sm" onclick="saveServerUrl()" style="width:100%;">Spremi URL</button>
-      <div id="url-msg" style="margin-top:.5rem;"></div>
-    </div>
   </div>
 </div>
 
@@ -217,7 +209,7 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
     <div id="tab-settings" class="hidden">
       <label>Naziv kviza</label>
       <input type="text" id="quiz-title" value="Moj Kviz" placeholder="npr. Uvod u programiranje">
-      <label>Zadano trajanje (sekundi) — ako za pitanje nije postavljeno</label>
+      <label>Trajanje po pitanju (sekundi)</label>
       <input type="number" id="q-dur" value="60" min="10" max="300">
     </div>
     <button class="btn btn-primary" onclick="createKviz()">🚀 Pokreni kviz i generiraj PIN</button>
@@ -252,10 +244,10 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
     </div>
     <div class="prog-bar"><div class="prog-fill" id="aq-prog" style="width:0%"></div></div>
     <div class="timer-wrap">
-      <svg width="100" height="100" viewBox="0 0 100 100" class="timer-ring">
-        <circle cx="50" cy="50" r="42" class="tbg"/>
-        <circle cx="50" cy="50" r="42" class="tarc" id="aq-arc" stroke-dasharray="264" stroke-dashoffset="0"/>
-        <text x="50" y="50" class="ttxt" id="aq-ttxt">60</text>
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="42" class="tbg" transform="rotate(-90 50 50)"/>
+        <circle cx="50" cy="50" r="42" class="tarc" id="aq-arc" stroke-dasharray="264" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>
+        <text x="50" y="56" class="ttxt" id="aq-ttxt">60</text>
       </svg>
     </div>
     <div class="q-text" id="aq-q">Pitanje...</div>
@@ -333,10 +325,10 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
     </div>
     <div class="prog-bar"><div class="prog-fill" id="pq-prog" style="width:0%"></div></div>
     <div class="timer-wrap">
-      <svg width="100" height="100" viewBox="0 0 100 100" class="timer-ring">
-        <circle cx="50" cy="50" r="42" class="tbg"/>
-        <circle cx="50" cy="50" r="42" class="tarc" id="pq-arc" stroke-dasharray="264" stroke-dashoffset="0"/>
-        <text x="50" y="50" class="ttxt" id="pq-ttxt">60</text>
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="42" class="tbg" transform="rotate(-90 50 50)"/>
+        <circle cx="50" cy="50" r="42" class="tarc" id="pq-arc" stroke-dasharray="264" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>
+        <text x="50" y="56" class="ttxt" id="pq-ttxt">60</text>
       </svg>
     </div>
     <div class="q-text" id="pq-q">Pitanje...</div>
@@ -471,6 +463,9 @@ function handle(msg) {
   }
   else if (type === 'ANSWER_COUNT') {
     document.getElementById('aq-ans-cnt').textContent = payload.count + ' odgovora';
+  }
+  else if (type === 'ALL_ANSWERED') {
+    ws_send({type:'ADMIN_END_QUESTION'});
   }
   else if (type === 'RESULTS') {
     stopTimer();
