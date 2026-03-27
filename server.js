@@ -7,6 +7,26 @@ const wss = new WebSocket.Server({ server });
 const kvizovi = {};
 const clients = new Map(); // FIX: Map umjesto {}, WS objekti ne mogu biti kljucevi u {}
 
+
+// Normalizacija za tolerantnu usporedbu odgovora
+function normalize(str) {
+  return str.toLowerCase()
+    .replace(/č|ć/g, 'c')
+    .replace(/š/g, 's')
+    .replace(/ž/g, 'z')
+    .replace(/đ/g, 'd')
+    .replace(/ije/g, 'je')  // rijeka -> rjeka (konzistentno)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function checkOpenAnswer(userAnswer, correctAnswers) {
+  // correctAnswers je string odvojen zarezom: "rijeka, more, jezero"
+  const accepted = correctAnswers.split(',').map(a => normalize(a.trim()));
+  const user = normalize(userAnswer);
+  return accepted.includes(user);
+}
+
 function broadcast(pin, msg, excludeWs = null) {
   wss.clients.forEach(ws => {
     const info = clients.get(ws);
@@ -155,6 +175,7 @@ function advanceQuestion(pin, adminWs) {
     qIdx: nextIdx,
     total: kviz.questions.length,
     text: q.text,
+    qtype: q.type || 'mc',
     answers: { a: q.a, b: q.b, c: q.c || '', d: q.d || '' },
     duration: q.duration || kviz.duration,
     startTime: kviz.questionStartTime
@@ -182,15 +203,22 @@ function endQuestion(pin, adminWs) {
   const playerResults = {};
   const answers = kviz.answers[qIdx] || {};
 
+  const isOpen = (q.type || 'mc') === 'open';
   Object.entries(kviz.players).forEach(([pid, player]) => {
     const ans = answers[pid];
     let gained = 0;
-    if (ans && ans.answer === correct) {
-      const elapsed = Math.max(0, (ans.time - startTime) / 1000);
-      gained = Math.round(1000 * Math.max(0.1, (dur - elapsed) / dur));
-      player.score += gained;
+    let isCorrect = false;
+    if (ans) {
+      isCorrect = isOpen
+        ? checkOpenAnswer(ans.answer, q.answers || '')
+        : ans.answer === correct;
+      if (isCorrect) {
+        const elapsed = Math.max(0, (ans.time - startTime) / 1000);
+        gained = Math.round(1000 * Math.max(0.1, (dur - elapsed) / dur));
+        player.score += gained;
+      }
     }
-    playerResults[pid] = { answer: ans ? ans.answer : null, gained, correct, score: player.score };
+    playerResults[pid] = { answer: ans ? ans.answer : null, gained, correct, isCorrect, score: player.score };
   });
 
   const counts = { A: 0, B: 0, C: 0, D: 0 };
@@ -202,11 +230,16 @@ function endQuestion(pin, adminWs) {
   wss.clients.forEach(c => {
     const cInfo = clients.get(c);
     if (!cInfo || cInfo.pin !== pin) return;
+    const isOpenQ = (q.type || 'mc') === 'open';
     if (cInfo.role === 'player') {
-      const res = playerResults[cInfo.playerId] || { answer: null, gained: 0, correct, score: kviz.players[cInfo.playerId]?.score || 0 };
-      sendTo(c, { type: 'RESULTS', payload: { ...res, counts, scoreboard, isLast, correctText: q[correct.toLowerCase()] } });
+      const res = playerResults[cInfo.playerId] || { answer: null, gained: 0, correct, isCorrect: false, score: kviz.players[cInfo.playerId]?.score || 0 };
+      sendTo(c, { type: 'RESULTS', payload: { ...res, counts, scoreboard, isLast,
+        isOpen: isOpenQ,
+        correctText: isOpenQ ? (q.answers || '') : q[correct.toLowerCase()] } });
     } else if (cInfo.role === 'admin') {
-      sendTo(c, { type: 'RESULTS', payload: { correct, correctText: q[correct.toLowerCase()], counts, scoreboard, isLast, qIdx } });
+      sendTo(c, { type: 'RESULTS', payload: { correct, counts, scoreboard, isLast, qIdx,
+        isOpen: isOpenQ,
+        correctText: isOpenQ ? (q.answers || '') : q[correct.toLowerCase()] } });
     }
   });
 }
