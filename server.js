@@ -20,11 +20,14 @@ function normalize(str) {
     .trim();
 }
 
-function checkOpenAnswer(userAnswer, correctAnswers) {
-  // correctAnswers je string odvojen zarezom: "rijeka, more, jezero"
-  const accepted = correctAnswers.split(',').map(a => normalize(a.trim()));
-  const user = normalize(userAnswer);
-  return accepted.includes(user);
+function checkOpenAnswer(userAnswerStr, openFields) {
+  // userAnswerStr je JSON array stringova, openFields je array točnih odgovora
+  let userAnswers;
+  try { userAnswers = JSON.parse(userAnswerStr); } catch { return false; }
+  if (!Array.isArray(userAnswers) || !Array.isArray(openFields)) return false;
+  if (userAnswers.length !== openFields.length) return false;
+  // Svaki odgovor mora odgovarati svom polju (tolerantno)
+  return openFields.every((correct, i) => normalize(userAnswers[i] || '') === normalize(correct));
 }
 
 function broadcast(pin, msg, excludeWs = null) {
@@ -176,6 +179,7 @@ function advanceQuestion(pin, adminWs) {
     total: kviz.questions.length,
     text: q.text,
     qtype: q.type || 'mc',
+    openFields: q.openFields || [],
     answers: { a: q.a, b: q.b, c: q.c || '', d: q.d || '' },
     duration: q.duration || kviz.duration,
     startTime: kviz.questionStartTime
@@ -210,7 +214,7 @@ function endQuestion(pin, adminWs) {
     let isCorrect = false;
     if (ans) {
       isCorrect = isOpen
-        ? checkOpenAnswer(ans.answer, q.answers || '')
+        ? checkOpenAnswer(ans.answer, q.openFields || [])
         : ans.answer === correct;
       if (isCorrect) {
         const elapsed = Math.max(0, (ans.time - startTime) / 1000);
