@@ -796,16 +796,19 @@ function showPlayerQ(p) {
 
   } else {
     document.getElementById('pq-open').classList.add('hidden');
+    const pqMc = document.getElementById('pq-mc');
+    pqMc.classList.remove('hidden');
     document.getElementById('pq-q').textContent = p.text;
     const opts = p.options || [];
     const isTF = p.qtype === 'tf';
-    document.getElementById('pq-mc').innerHTML = opts.map((opt, oi) => {
+    pqMc.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;';
+    pqMc.innerHTML = opts.map((opt, oi) => {
       const letter = LETTERS[oi];
       const cls = isTF
-        ? (oi === 0 ? 'qc' : 'ans-btn-tf-f')
+        ? (oi === 0 ? 'qc' : 'qb')
         : (OPT_CLASSES[oi] || 'qa');
-      const tfStyle = isTF && oi === 1
-        ? 'background:#601a1a;color:#ffaaaa;border-color:#ff5252;'
+      const tfStyle = isTF
+        ? `font-size:1.1rem;font-weight:700;padding:1.4rem;`
         : '';
       return `<button class="ans-btn ${cls}" id="pqa-${letter.toLowerCase()}" style="${tfStyle}" onclick="submitAns('${letter}')">${opt}</button>`;
     }).join('');
