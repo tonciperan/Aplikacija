@@ -710,7 +710,10 @@ function setMsg(id, msg, type) {
 
 // ===== INIT =====
 renderEditor();
-if (SERVER_URL) initWS();
+if (SERVER_URL) {
+  localStorage.setItem('kviz_server_url', SERVER_URL);
+  initWS();
+}
 </script>
 </body>
 </html>
