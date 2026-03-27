@@ -664,21 +664,18 @@ function startTimer(prefix, dur, startTime) {
   const circ = 264;
   const arc = document.getElementById(prefix+'-arc');
   const txt = document.getElementById(prefix+'-ttxt');
-  const elapsed = startTime ? Math.max(0,(Date.now()-startTime)/1000) : 0;
-  timerVal = Math.max(0, Math.round(dur - elapsed));
-  timerDur = dur;
+  // Koristimo stvarno vrijeme - server nam šalje kada je pitanje počelo
+  const endTime = startTime ? (startTime + dur * 1000) : (Date.now() + dur * 1000);
 
-  arc.style.stroke = 'var(--accent)';
-  arc.style.strokeDashoffset = circ * (1 - timerVal/dur);
-  txt.textContent = timerVal;
-
-  timerInt = setInterval(() => {
-    timerVal = Math.max(0, timerVal-1);
-    txt.textContent = timerVal;
-    arc.style.strokeDashoffset = circ * (1 - timerVal/dur);
-    if (timerVal <= 10) arc.style.stroke = 'var(--red)';
-    else if (timerVal <= 20) arc.style.stroke = 'var(--amber)';
-    if (timerVal <= 0) {
+  function tick() {
+    const remaining = Math.max(0, (endTime - Date.now()) / 1000);
+    const secs = Math.ceil(remaining);
+    txt.textContent = secs;
+    arc.style.strokeDashoffset = circ * (1 - remaining / dur);
+    if (secs <= 10) arc.style.stroke = 'var(--red)';
+    else if (secs <= 20) arc.style.stroke = 'var(--amber)';
+    else arc.style.stroke = 'var(--accent)';
+    if (remaining <= 0) {
       stopTimer();
       if (role === 'player' && !myAnswered) {
         myAnswered = true;
@@ -687,10 +684,13 @@ function startTimer(prefix, dur, startTime) {
         document.getElementById('pw-msg').textContent = 'Nisi odgovorio/la na vrijeme.';
         show('player-waiting');
       }
+      return;
     }
-  }, 1000);
+    timerInt = setTimeout(tick, 100); // 100ms za preciznost, ne 1000ms
+  }
+  tick();
 }
-function stopTimer() { if (timerInt) { clearInterval(timerInt); timerInt = null; } }
+function stopTimer() { if (timerInt) { clearTimeout(timerInt); timerInt = null; } }
 
 // ===== HELPERS =====
 function renderBoard(arr, limit=20) {
