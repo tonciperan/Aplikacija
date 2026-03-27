@@ -114,8 +114,13 @@ wss.on('connection', (ws) => {
       };
 
       const answerCount = Object.keys(kviz.answers[qIdx]).length;
+      const totalPlayers = Object.keys(kviz.players).length;
       const adminWs = getAdminWs(info.pin);
       if (adminWs) sendTo(adminWs, { type: 'ANSWER_COUNT', payload: { count: answerCount } });
+      // Ako su svi igraci odgovorili, automatski zavrsi pitanje
+      if (answerCount >= totalPlayers && totalPlayers > 0) {
+        setTimeout(() => endQuestion(info.pin, adminWs), 1500); // 1.5s pauza da igraci vide da su odgovorili
+      }
     }
   });
 

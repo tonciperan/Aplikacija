@@ -68,7 +68,7 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
 .tarc{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round;
   transition:stroke-dashoffset 1s linear,stroke .4s}
 .ttxt{font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;
-  fill:var(--text);text-anchor:middle;dominant-baseline:central}
+  fill:var(--text);text-anchor:middle;}
 
 /* QUESTION */
 .q-text{font-family:'Syne',sans-serif;font-size:1.55rem;font-weight:700;
@@ -255,7 +255,7 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
       <svg width="100" height="100" viewBox="0 0 100 100">
         <circle cx="50" cy="50" r="42" class="tbg" transform="rotate(-90 50 50)"/>
         <circle cx="50" cy="50" r="42" class="tarc" id="aq-arc" stroke-dasharray="264" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>
-        <text x="50" y="35" class="ttxt" id="aq-ttxt" dy="0.35em" dominant-baseline="auto">60</text>
+        <text x="50" y="56" class="ttxt" id="aq-ttxt">60</text>
       </svg>
     </div>
     <div class="q-text" id="aq-q">Pitanje...</div>
@@ -336,7 +336,7 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
       <svg width="100" height="100" viewBox="0 0 100 100">
         <circle cx="50" cy="50" r="42" class="tbg" transform="rotate(-90 50 50)"/>
         <circle cx="50" cy="50" r="42" class="tarc" id="pq-arc" stroke-dasharray="264" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>
-        <text x="50" y="50" class="ttxt" id="pq-ttxt" dy="0.35em" dominant-baseline="auto">60</text>
+        <text x="50" y="56" class="ttxt" id="pq-ttxt">60</text>
       </svg>
     </div>
     <div class="q-text" id="pq-q">Pitanje...</div>
@@ -471,6 +471,10 @@ function handle(msg) {
   }
   else if (type === 'ANSWER_COUNT') {
     document.getElementById('aq-ans-cnt').textContent = payload.count + ' odgovora';
+  }
+  else if (type === 'ALL_ANSWERED') {
+    // Svi igraci su odgovorili - admin moze rucno zavrsiti ili automatski
+    ws_send({type:'ADMIN_END_QUESTION'});
   }
   else if (type === 'RESULTS') {
     stopTimer();
