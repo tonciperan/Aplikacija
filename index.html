@@ -63,12 +63,12 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
 
 /* TIMER */
 .timer-wrap{display:flex;justify-content:center;margin-bottom:1.5rem}
-.timer-ring{transform:rotate(-90deg)}
+
 .tbg{fill:none;stroke:var(--surface2);stroke-width:8}
 .tarc{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round;
   transition:stroke-dashoffset 1s linear,stroke .4s}
 .ttxt{font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;
-  fill:var(--text);text-anchor:middle;dominant-baseline:central}
+  fill:var(--text);text-anchor:middle;}
 
 /* QUESTION */
 .q-text{font-family:'Syne',sans-serif;font-size:1.55rem;font-weight:700;
@@ -252,10 +252,10 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
     </div>
     <div class="prog-bar"><div class="prog-fill" id="aq-prog" style="width:0%"></div></div>
     <div class="timer-wrap">
-      <svg width="100" height="100" viewBox="0 0 100 100" class="timer-ring">
-        <circle cx="50" cy="50" r="42" class="tbg"/>
-        <circle cx="50" cy="50" r="42" class="tarc" id="aq-arc" stroke-dasharray="264" stroke-dashoffset="0"/>
-        <text x="50" y="50" class="ttxt" id="aq-ttxt">60</text>
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="42" class="tbg" transform="rotate(-90 50 50)"/>
+        <circle cx="50" cy="50" r="42" class="tarc" id="aq-arc" stroke-dasharray="264" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>
+        <text x="50" y="56" class="ttxt" id="aq-ttxt">60</text>
       </svg>
     </div>
     <div class="q-text" id="aq-q">Pitanje...</div>
@@ -333,10 +333,10 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
     </div>
     <div class="prog-bar"><div class="prog-fill" id="pq-prog" style="width:0%"></div></div>
     <div class="timer-wrap">
-      <svg width="100" height="100" viewBox="0 0 100 100" class="timer-ring">
-        <circle cx="50" cy="50" r="42" class="tbg"/>
-        <circle cx="50" cy="50" r="42" class="tarc" id="pq-arc" stroke-dasharray="264" stroke-dashoffset="0"/>
-        <text x="50" y="50" class="ttxt" id="pq-ttxt">60</text>
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="42" class="tbg" transform="rotate(-90 50 50)"/>
+        <circle cx="50" cy="50" r="42" class="tarc" id="pq-arc" stroke-dasharray="264" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>
+        <text x="50" y="56" class="ttxt" id="pq-ttxt">60</text>
       </svg>
     </div>
     <div class="q-text" id="pq-q">Pitanje...</div>
@@ -409,7 +409,7 @@ let role = null, playerId = null, playerName = null;
 let myScore = 0, myAnswered = false, myAnswer = null;
 let timerInt = null, timerVal = 0, timerDur = 60;
 let qTotal = 0, qIdx = 0;
-let editorQs = [{ text:'', a:'', b:'', c:'', d:'', correct:'A' }];
+let editorQs = [{ text:'', a:'', b:'', c:'', d:'', correct:'A', duration:60 }];
 
 // ===== WEBSOCKET =====
 function initWS() {
@@ -472,6 +472,9 @@ function handle(msg) {
   else if (type === 'ANSWER_COUNT') {
     document.getElementById('aq-ans-cnt').textContent = payload.count + ' odgovora';
   }
+  else if (type === 'ALL_ANSWERED') {
+    ws_send({type:'ADMIN_END_QUESTION'});
+  }
   else if (type === 'RESULTS') {
     stopTimer();
     if (role === 'admin') showAdminResults(payload);
@@ -522,6 +525,8 @@ function renderEditor() {
         <input type="text" value="${esc(q.text)}" placeholder="Upiši pitanje..." oninput="editorQs[${i}].text=this.value">
         <label>Trajanje (sekundi)</label>
         <input type="number" value="${q.duration||60}" min="10" max="300" style="margin-bottom:.75rem;" oninput="editorQs[${i}].duration=parseInt(this.value)||60">
+        <label>Trajanje (sekundi)</label>
+        <input type="number" value="${q.duration||60}" min="10" max="300" style="margin-bottom:.75rem;" oninput="editorQs[${i}].duration=parseInt(this.value)||60">
         <div class="ans-inputs">
           ${ks.map((k,j)=>`
             <div class="ans-wrap">
@@ -538,7 +543,7 @@ function renderEditor() {
 }
 
 function addQ() {
-  editorQs.push({text:'',a:'',b:'',c:'',d:'',correct:'A'});
+  editorQs.push({text:'',a:'',b:'',c:'',d:'',correct:'A',duration:60});
   renderEditor();
   setTimeout(()=>document.getElementById('q-list').lastElementChild.scrollIntoView({behavior:'smooth'}),50);
 }
@@ -569,7 +574,7 @@ function showAdminQ(p) {
   document.getElementById('aq-ans-cnt').textContent = '0 odgovora';
   document.getElementById('aq-prog').style.width = `${((p.qIdx+1)/p.total)*100}%`;
   show('admin-question');
-  startTimer('aq', p.duration, p.startTime);
+  startTimer('aq', p.duration);
 }
 
 function showAdminResults(p) {
@@ -616,7 +621,7 @@ function showPlayerQ(p) {
     b.disabled = false; b.classList.remove('selected','correct','wrong');
   });
   show('player-question');
-  startTimer('pq', p.duration, p.startTime);
+  startTimer('pq', p.duration);
 }
 
 function submitAns(letter) {
@@ -656,26 +661,22 @@ function showPlayerFinal(p) {
 }
 
 // ===== TIMER =====
-function startTimer(prefix, dur, startTime) {
+function startTimer(prefix, dur) {
   stopTimer();
   const circ = 264;
   const arc = document.getElementById(prefix+'-arc');
   const txt = document.getElementById(prefix+'-ttxt');
-  const elapsed = startTime ? Math.max(0,(Date.now()-startTime)/1000) : 0;
-  timerVal = Math.max(0, Math.round(dur - elapsed));
-  timerDur = dur;
+  const endTime = Date.now() + dur * 1000;
 
-  arc.style.stroke = 'var(--accent)';
-  arc.style.strokeDashoffset = circ * (1 - timerVal/dur);
-  txt.textContent = timerVal;
-
-  timerInt = setInterval(() => {
-    timerVal = Math.max(0, timerVal-1);
-    txt.textContent = timerVal;
-    arc.style.strokeDashoffset = circ * (1 - timerVal/dur);
-    if (timerVal <= 10) arc.style.stroke = 'var(--red)';
-    else if (timerVal <= 20) arc.style.stroke = 'var(--amber)';
-    if (timerVal <= 0) {
+  function tick() {
+    const remaining = Math.max(0, (endTime - Date.now()) / 1000);
+    const secs = Math.ceil(remaining);
+    txt.textContent = secs;
+    arc.style.strokeDashoffset = circ * (1 - remaining / dur);
+    if (secs <= 10) arc.style.stroke = 'var(--red)';
+    else if (secs <= 20) arc.style.stroke = 'var(--amber)';
+    else arc.style.stroke = 'var(--accent)';
+    if (remaining <= 0) {
       stopTimer();
       if (role === 'player' && !myAnswered) {
         myAnswered = true;
@@ -684,10 +685,13 @@ function startTimer(prefix, dur, startTime) {
         document.getElementById('pw-msg').textContent = 'Nisi odgovorio/la na vrijeme.';
         show('player-waiting');
       }
+      return;
     }
-  }, 1000);
+    timerInt = setTimeout(tick, 100);
+  }
+  tick();
 }
-function stopTimer() { if (timerInt) { clearInterval(timerInt); timerInt = null; } }
+function stopTimer() { if (timerInt) { clearTimeout(timerInt); timerInt = null; } }
 
 // ===== HELPERS =====
 function renderBoard(arr, limit=20) {
