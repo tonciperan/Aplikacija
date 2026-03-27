@@ -82,6 +82,10 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
 .ans-btn.qb{background:#701f3a;color:#ffaab8;border-color:#ff6b8a}
 .ans-btn.qc{background:#1a6040;color:#9dffc8;border-color:#00e676}
 .ans-btn.qd{background:#604a1a;color:#ffe799;border-color:#ffb300}
+.ans-btn.qe{background:#1a3a60;color:#90caf9;border-color:#42a5f5}
+.ans-btn.qf{background:#4a1a60;color:#e1a8ff;border-color:#ab47bc}
+.ans-btn.qg{background:#2a5a1a;color:#c5e1a5;border-color:#7cb342}
+.ans-btn.qh{background:#5a2a1a;color:#ffcc80;border-color:#ffa726}
 .ans-btn:hover{filter:brightness(1.2)}
 .ans-btn.selected{filter:brightness(1.5);transform:scale(1.03)}
 .ans-btn.correct{background:#00e676!important;color:#000!important;border-color:#00e676!important}
@@ -220,7 +224,10 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
       <label>Trajanje po pitanju (sekundi)</label>
       <input type="number" id="q-dur" value="60" min="10" max="300">
     </div>
-    <button class="btn btn-primary" onclick="createKviz()">🚀 Pokreni kviz i generiraj PIN</button>
+    <div style="display:flex;gap:8px;margin-bottom:.5rem;">
+      <button class="btn btn-primary" onclick="createKviz()" style="flex:1;">🚀 Pokreni kviz i generiraj PIN</button>
+      <button class="btn btn-outline btn-sm" onclick="clearQuiz()" title="Obriši sve i počni ispočetka">🗑 Resetiraj</button>
+    </div>
     <div id="setup-msg" style="margin-top:.75rem;"></div>
   </div>
 </div>
@@ -259,12 +266,7 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
       </svg>
     </div>
     <div class="q-text" id="aq-q">Pitanje...</div>
-    <div class="ans-grid">
-      <div class="ans-btn qa" id="aqa-a"></div>
-      <div class="ans-btn qb" id="aqa-b"></div>
-      <div class="ans-btn qc" id="aqa-c"></div>
-      <div class="ans-btn qd" id="aqa-d"></div>
-    </div>
+    <div id="aqa-options" class="ans-grid"></div>
     <div style="margin-top:1.5rem;">
       <button class="btn btn-outline btn-sm" onclick="ws_send({type:'ADMIN_END_QUESTION'})">⏭ Završi pitanje</button>
     </div>
@@ -340,12 +342,7 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
       </svg>
     </div>
     <div class="q-text" id="pq-q">Pitanje...</div>
-    <div id="pq-mc" class="ans-grid">
-      <button class="ans-btn qa" id="pqa-a" onclick="submitAns('A')"></button>
-      <button class="ans-btn qb" id="pqa-b" onclick="submitAns('B')"></button>
-      <button class="ans-btn qc" id="pqa-c" onclick="submitAns('C')"></button>
-      <button class="ans-btn qd" id="pqa-d" onclick="submitAns('D')"></button>
-    </div>
+    <div id="pq-mc"></div>
     <div id="pq-open" class="hidden">
       <div id="pq-open-fields"></div>
       <button class="btn btn-primary" onclick="submitOpenAns()" style="margin-top:.5rem;">Potvrdi odgovore ✓</button>
@@ -413,7 +410,22 @@ let role = null, playerId = null, playerName = null;
 let myScore = 0, myAnswered = false, myAnswer = null;
 let timerInt = null, timerVal = 0, timerDur = 60;
 let qTotal = 0, qIdx = 0;
-let editorQs = [{ type:'mc', text:'', a:'', b:'', c:'', d:'', correct:'A', duration:60 }];
+const OPT_CLASSES = ['qa','qb','qc','qd','qe','qf','qg','qh'];
+const OPT_COLORS  = ['#7c6fff','#ff6b8a','#00e676','#ffb300','#42a5f5','#ab47bc','#7cb342','#ffa726'];
+const LETTERS = 'ABCDEFGH';
+
+function loadSavedQuiz() {
+  try {
+    const raw = localStorage.getItem('kviz_editor');
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return null;
+}
+function saveQuiz() {
+  try { localStorage.setItem('kviz_editor', JSON.stringify(editorQs)); } catch(e) {}
+}
+
+let editorQs = loadSavedQuiz() || [{ type:'mc', text:'', options:['',''], correct:'A', duration:60 }];
 
 // ===== WEBSOCKET =====
 function initWS() {
@@ -515,17 +527,50 @@ function switchTab(tab, btn) {
 }
 
 function renderEditor() {
-  const ls = ['A','B','C','D'], ks = ['a','b','c','d'];
   const html = editorQs.map((q, i) => {
-    const isMC = (q.type || 'mc') === 'mc';
+    const qtype = q.type || 'mc';
+    const isMC = qtype === 'mc';
+    const isTF = qtype === 'tf';
+    const isOpen = qtype === 'open';
+
+    // MC section — dinamične opcije
+    const opts = q.options || ['',''];
+    const filledOpts = opts.filter(o => o.trim());
+    const mcInputs = opts.map((val, oi) => `
+      <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+        <span style="min-width:22px;font-weight:700;color:${OPT_COLORS[oi]||'var(--muted)'};">${LETTERS[oi]}</span>
+        <input type="text" value="${esc(val)}" placeholder="Odgovor ${LETTERS[oi]}"
+          oninput="editorQs[${i}].options[${oi}]=this.value;saveQuiz()"
+          style="margin-bottom:0;flex:1;">
+        ${opts.length > 2 ? `<button onclick="editorQs[${i}].options.splice(${oi},1);if(editorQs[${i}].correct===LETTERS[${oi}])editorQs[${i}].correct='A';renderEditor()" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:.4rem .7rem;cursor:pointer;font-size:.85rem;">✕</button>` : ''}
+      </div>`).join('');
+    const mcSection = `
+      <label>Ponuđeni odgovori</label>
+      ${mcInputs}
+      ${opts.length < 8 ? `<button onclick="editorQs[${i}].options.push('');renderEditor()" style="background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:.4rem .9rem;cursor:pointer;font-size:.85rem;margin-bottom:.75rem;">+ Dodaj odgovor</button>` : ''}
+      <div style="font-size:.8rem;color:var(--muted);margin-top:6px;margin-bottom:4px;">Točan odgovor:</div>
+      <div class="correct-sel">
+        ${opts.map((o,oi)=> o.trim() ? `<button class="c-btn${(q.correct||'A')===LETTERS[oi]?' sel':''}" onclick="setCorrect(${i},'${LETTERS[oi]}')">${LETTERS[oi]}</button>` : '').join('')}
+      </div>`;
+
+    // TF section
+    const tfSection = `
+      <div style="font-size:.9rem;color:var(--muted);margin-bottom:.75rem;">Igrač bira između <strong>Točno</strong> i <strong>Netočno</strong></div>
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px;">Točan odgovor:</div>
+      <div style="display:flex;gap:8px;">
+        <button class="c-btn${(q.correct||'A')==='A'?' sel':''}" onclick="editorQs[${i}].correct='A';saveQuiz();renderEditor()">✓ Točno</button>
+        <button class="c-btn${(q.correct||'A')==='B'?' sel':''}" onclick="editorQs[${i}].correct='B';saveQuiz();renderEditor()">✗ Netočno</button>
+      </div>`;
+
+    // Open section
     const openFields = q.openFields || [''];
     const blankCount = (q.text || '').split('___').length - 1;
-    const mismatchWarn = (!isMC && blankCount > 0 && blankCount !== openFields.length)
+    const mismatchWarn = (blankCount > 0 && blankCount !== openFields.length)
       ? `<div style="color:var(--amber);font-size:.8rem;margin-bottom:.5rem;">⚠️ Broj ___ (${blankCount}) ne odgovara broju točnih odgovora (${openFields.length})!</div>` : '';
     const openInputs = openFields.map((val, fi) => `
       <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
         <input type="text" value="${esc(val)}" placeholder="Točna riječ/odgovor ${fi+1}"
-          oninput="editorQs[${i}].openFields[${fi}]=this.value;document.getElementById('mismatch-${i}').innerHTML=getMismatchWarn(${i})"
+          oninput="editorQs[${i}].openFields[${fi}]=this.value;saveQuiz();document.getElementById('mismatch-${i}').innerHTML=getMismatchWarn(${i})"
           style="margin-bottom:0;flex:1;">
         ${openFields.length > 1 ? `<button onclick="editorQs[${i}].openFields.splice(${fi},1);renderEditor()" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:.4rem .7rem;cursor:pointer;font-size:.85rem;">✕</button>` : ''}
       </div>`).join('');
@@ -535,38 +580,37 @@ function renderEditor() {
       <button onclick="editorQs[${i}].openFields=editorQs[${i}].openFields||[''];editorQs[${i}].openFields.push('');renderEditor()" style="background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:.4rem .9rem;cursor:pointer;font-size:.85rem;margin-bottom:.75rem;">+ Dodaj polje</button>
       <div id="mismatch-${i}">${mismatchWarn}</div>
       <div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem;">⚠️ Tolerira: veliko/malo slovo, č/ć→c, š→s, ž→z, ije/je — Igrač mora ispuniti SVA polja točno</div>`;
-    const mcSection = `
-      <div class="ans-inputs">
-        ${ks.map((k,j)=>`
-          <div class="ans-wrap">
-            <span class="ans-lbl">${ls[j]}</span>
-            <input type="text" value="${esc(q[k]||'')}" placeholder="Odgovor ${ls[j]}" oninput="editorQs[${i}].${k}=this.value">
-          </div>`).join('')}
-      </div>
-      <div style="font-size:.8rem;color:var(--muted);margin-top:6px;margin-bottom:4px;">Točan odgovor:</div>
-      <div class="correct-sel">
-        ${ls.map(l=>`<button class="c-btn${(q.correct||'A')===l?' sel':''}" onclick="setCorrect(${i},'${l}')">${l}</button>`).join('')}
-      </div>`;
+
     return `
       <div class="q-editor">
         <div class="q-editor-hd">
           <span>Pitanje ${i+1}</span>
           <div style="display:flex;gap:6px;align-items:center;">
-            <select onchange="editorQs[${i}].type=this.value;if(this.value==='open'&&!editorQs[${i}].openFields)editorQs[${i}].openFields=[''];renderEditor()" style="padding:.25rem .5rem;font-size:.8rem;border-radius:6px;width:auto;margin-bottom:0;background:var(--surface);color:var(--text);border:1px solid var(--border);">
+            <select onchange="changeQType(${i},this.value)" style="padding:.25rem .5rem;font-size:.8rem;border-radius:6px;width:auto;margin-bottom:0;background:var(--surface);color:var(--text);border:1px solid var(--border);">
               <option value="mc" ${isMC?'selected':''}>Višestruki izbor</option>
-              <option value="open" ${!isMC?'selected':''}>Nadopunjavanje</option>
+              <option value="tf" ${isTF?'selected':''}>Točno / Netočno</option>
+              <option value="open" ${isOpen?'selected':''}>Nadopunjavanje</option>
             </select>
             ${editorQs.length>1 ? `<button class="btn btn-danger btn-sm" onclick="rmQ(${i})">Obriši</button>` : ''}
           </div>
         </div>
         <label>Tekst pitanja</label>
-        <input type="text" value="${esc(q.text||'')}" placeholder="Upiši pitanje (npr. Napiši tri mora u Hrvatskoj: ___, ___, ___)" oninput="editorQs[${i}].text=this.value;if(!editorQs[${i}].type||editorQs[${i}].type==='open')document.getElementById('mismatch-${i}').innerHTML=getMismatchWarn(${i})">
+        <input type="text" value="${esc(q.text||'')}" placeholder="${isOpen?'npr. Jadransko more se nalazi u ___ (Europi)':'Upiši pitanje...'}" oninput="editorQs[${i}].text=this.value;saveQuiz();if('${qtype}'==='open')document.getElementById('mismatch-${i}').innerHTML=getMismatchWarn(${i})">
         <label>Trajanje (sekundi)</label>
-        <input type="number" value="${q.duration||60}" min="10" max="300" style="margin-bottom:.75rem;" oninput="editorQs[${i}].duration=parseInt(this.value)||60">
-        ${isMC ? mcSection : openSection}
+        <input type="number" value="${q.duration||60}" min="10" max="300" style="margin-bottom:.75rem;" oninput="editorQs[${i}].duration=parseInt(this.value)||60;saveQuiz()">
+        ${isMC ? mcSection : isTF ? tfSection : openSection}
       </div>`;
   }).join('');
   document.getElementById('q-list').innerHTML = html;
+}
+
+function changeQType(i, type) {
+  editorQs[i].type = type;
+  if (type === 'mc' && !editorQs[i].options) editorQs[i].options = ['',''];
+  if (type === 'open' && !editorQs[i].openFields) editorQs[i].openFields = [''];
+  if (type === 'tf') editorQs[i].correct = editorQs[i].correct === 'B' ? 'B' : 'A';
+  saveQuiz();
+  renderEditor();
 }
 
 function getMismatchWarn(i) {
@@ -578,21 +622,30 @@ function getMismatchWarn(i) {
 }
 
 function addQ() {
-  editorQs.push({type:'mc', text:'',a:'',b:'',c:'',d:'',correct:'A',duration:60});
+  editorQs.push({type:'mc', text:'', options:['',''], correct:'A', duration:60});
+  saveQuiz();
   renderEditor();
   setTimeout(()=>document.getElementById('q-list').lastElementChild.scrollIntoView({behavior:'smooth'}),50);
 }
-function rmQ(i) { editorQs.splice(i,1); renderEditor(); }
-function setCorrect(i,l) { editorQs[i].correct=l; renderEditor(); }
+function rmQ(i) { editorQs.splice(i,1); saveQuiz(); renderEditor(); }
+function setCorrect(i,l) { editorQs[i].correct=l; saveQuiz(); renderEditor(); }
+function clearQuiz() {
+  if (!confirm('Obrisati sva pitanja i početi ispočetka?')) return;
+  editorQs = [{type:'mc', text:'', options:['',''], correct:'A', duration:60}];
+  saveQuiz(); renderEditor();
+}
 
 function createKviz() {
   if (!wsReady) { setMsg('setup-msg','Nisi spojen na server! Provjeri URL na početnoj stranici.','err'); return; }
   const qs = editorQs.filter(q => {
     if (!q.text.trim()) return false;
-    if ((q.type||'mc') === 'open') return q.openFields && q.openFields.some(f => f.trim());
-    return !!(q.a && q.b);
+    const qtype = q.type || 'mc';
+    if (qtype === 'open') return q.openFields && q.openFields.some(f => f.trim());
+    if (qtype === 'tf') return true;
+    // mc: treba barem 2 ispunjena odgovora
+    return (q.options || []).filter(o => o.trim()).length >= 2;
   });
-  if (!qs.length) { setMsg('setup-msg','Dodaj barem jedno pitanje! (Višestruki: treba A i B. Nadopunjavanje: treba barem jedan točan odgovor.)','err'); return; }
+  if (!qs.length) { setMsg('setup-msg','Dodaj barem jedno pitanje! MC treba ≥2 odgovora, Nadopunjavanje treba barem jedan točan odgovor.','err'); return; }
   const mismatch = qs.find(q => {
     if ((q.type||'mc') !== 'open') return false;
     const blanks = (q.text||'').split('___').length - 1;
@@ -614,18 +667,19 @@ function showAdminQ(p) {
   document.getElementById('aq-q').textContent = p.text;
   document.getElementById('aq-ans-cnt').textContent = '0 odgovora';
   document.getElementById('aq-prog').style.width = `${((p.qIdx+1)/p.total)*100}%`;
+  const opts = p.options || [];
+  let aqHtml;
   if (p.qtype === 'open') {
     const fields = p.openFields || [];
-    document.getElementById('aqa-a').textContent = `✏️ Nadopunjavanje — ${fields.length} ${fields.length===1?'polje':'polja'}`;
-    document.getElementById('aqa-b').textContent = fields.map((f,i) => `${i+1}. ${f}`).join('  |  ');
-    document.getElementById('aqa-c').textContent = '';
-    document.getElementById('aqa-d').textContent = '';
+    aqHtml = `<div class="ans-btn qa" style="grid-column:1/-1;">✏️ Nadopunjavanje — ${fields.length} ${fields.length===1?'polje':'polja'}: ${fields.map((f,i)=>`${i+1}. ${f}`).join(' | ')}</div>`;
   } else {
-    document.getElementById('aqa-a').textContent = 'A: '+p.answers.a;
-    document.getElementById('aqa-b').textContent = 'B: '+p.answers.b;
-    document.getElementById('aqa-c').textContent = 'C: '+(p.answers.c||'');
-    document.getElementById('aqa-d').textContent = 'D: '+(p.answers.d||'');
+    aqHtml = opts.map((opt,oi) =>
+      `<div class="ans-btn ${OPT_CLASSES[oi]||'qa'}">${LETTERS[oi]}: ${opt}</div>`
+    ).join('');
   }
+  document.getElementById('aqa-options').innerHTML = aqHtml;
+  // Postavi grid kolone ovisno o broju opcija
+  document.getElementById('aqa-options').style.gridTemplateColumns = opts.length > 4 ? '1fr 1fr' : (opts.length === 2 ? '1fr 1fr' : '1fr 1fr');
   show('admin-question');
   const aqElapsed = Math.max(0, (Date.now() - (p.startTime || Date.now())) / 1000);
   startTimer('aq', Math.max(1, p.duration - aqElapsed));
@@ -634,19 +688,23 @@ function showAdminQ(p) {
 function showAdminResults(p) {
   document.getElementById('ar-q').textContent = 'Rezultati pitanja ' + (p.qIdx+1);
   if (p.isOpen) {
-    const fields = p.openFields || [];
-    document.getElementById('ar-correct').textContent = `✓ Točni odgovori: ${fields.join(' | ')}`;
+    document.getElementById('ar-correct').textContent = `✓ Točni odgovori: ${p.correctText}`;
     document.getElementById('ar-bars').innerHTML = '<div style="color:var(--muted);font-size:.9rem;padding:.5rem 0;">Nadopunjavanje — igrači su upisivali tekst</div>';
   } else {
     document.getElementById('ar-correct').textContent = `✓ Točan odgovor: ${p.correct} — ${p.correctText}`;
-    const colors = {A:'#7c6fff',B:'#ff6b8a',C:'#00e676',D:'#ffb300'};
-    const max = Math.max(...Object.values(p.counts), 1);
-    document.getElementById('ar-bars').innerHTML = ['A','B','C','D'].map(l => `
-      <div class="bar-col">
-        <div class="bar-cnt">${p.counts[l]||0}</div>
-        <div class="bar-body" style="height:${Math.max((p.counts[l]||0)/max*100,5)}%;background:${l===p.correct?'var(--green)':colors[l]};"></div>
-        <div class="bar-lbl" style="color:${l===p.correct?'var(--green)':colors[l]}">${l}</div>
-      </div>`).join('');
+    const opts = p.options || [];
+    const max = Math.max(...opts.map((_,i)=>p.counts[LETTERS[i]]||0), 1);
+    document.getElementById('ar-bars').innerHTML = opts.map((opt, oi) => {
+      const l = LETTERS[oi];
+      const cnt = p.counts[l] || 0;
+      const isCorrect = l === p.correct;
+      const color = isCorrect ? 'var(--green)' : OPT_COLORS[oi];
+      return `<div class="bar-col">
+        <div class="bar-cnt">${cnt}</div>
+        <div class="bar-body" style="height:${Math.max(cnt/max*100,5)}%;background:${color};"></div>
+        <div class="bar-lbl" style="color:${color}">${l}</div>
+      </div>`;
+    }).join('');
   }
   document.getElementById('ar-board').innerHTML = renderBoard(p.scoreboard, 5);
   document.getElementById('next-btn').textContent = p.isLast ? '🏆 Završi kviz' : 'Sljedeće pitanje ▶';
@@ -714,17 +772,20 @@ function showPlayerQ(p) {
     setTimeout(() => { var f = document.getElementById('pq-open-0'); if(f) f.focus(); }, 150);
 
   } else {
-    document.getElementById('pq-mc').classList.remove('hidden');
     document.getElementById('pq-open').classList.add('hidden');
     document.getElementById('pq-q').textContent = p.text;
-    document.getElementById('pqa-a').textContent = 'A: '+p.answers.a;
-    document.getElementById('pqa-b').textContent = 'B: '+p.answers.b;
-    document.getElementById('pqa-c').textContent = 'C: '+(p.answers.c||'');
-    document.getElementById('pqa-d').textContent = 'D: '+(p.answers.d||'');
-    ['a','b','c','d'].forEach(l => {
-      const b = document.getElementById('pqa-'+l);
-      b.disabled = false; b.classList.remove('selected','correct','wrong');
-    });
+    const opts = p.options || [];
+    const isTF = p.qtype === 'tf';
+    document.getElementById('pq-mc').innerHTML = opts.map((opt, oi) => {
+      const letter = LETTERS[oi];
+      const cls = isTF
+        ? (oi === 0 ? 'qc' : 'ans-btn-tf-f')
+        : (OPT_CLASSES[oi] || 'qa');
+      const tfStyle = isTF && oi === 1
+        ? 'background:#601a1a;color:#ffaaaa;border-color:#ff5252;'
+        : '';
+      return `<button class="ans-btn ${cls}" id="pqa-${letter.toLowerCase()}" style="${tfStyle}" onclick="submitAns('${letter}')">${opt}</button>`;
+    }).join('');
   }
   show('player-question');
   const pqElapsed = Math.max(0, (Date.now() - (p.startTime || Date.now())) / 1000);
@@ -736,8 +797,9 @@ function submitAns(letter) {
   myAnswered = true; myAnswer = letter;
   stopTimer();
   ws_send({ type:'PLAYER_ANSWER', payload:{ answer: letter } });
-  ['a','b','c','d'].forEach(l => document.getElementById('pqa-'+l).disabled = true);
-  document.getElementById('pqa-'+letter.toLowerCase()).classList.add('selected');
+  document.querySelectorAll('#pq-mc button').forEach(b => b.disabled = true);
+  const sel = document.getElementById('pqa-' + letter.toLowerCase());
+  if (sel) sel.classList.add('selected');
   document.getElementById('pw-icon').textContent = '✅';
   document.getElementById('pw-title').textContent = 'Odgovorio/la si!';
   document.getElementById('pw-msg').textContent = `Odgovor: ${letter} — Čekam rezultate...`;
@@ -773,15 +835,13 @@ function showPlayerResult(p) {
   myScore = p.score;
   document.getElementById('pr-icon').textContent = isCorrect ? '🎉' : '😔';
   if (p.isOpen) {
-    const fields = p.openFields || [];
-    const correctText = fields.join(', ');
     document.getElementById('pr-title').textContent = isCorrect
       ? 'Točno! Svi odgovori su ispravni!'
-      : `Netočno! Točni odgovori: ${correctText}`;
+      : `Netočno! Točni odgovori: ${p.correctText}`;
   } else {
     document.getElementById('pr-title').textContent = isCorrect
       ? 'Točno!'
-      : `Netočno! Točan: ${p.correct} — ${p.correctText}`;
+      : `Netočno! Točan odgovor: ${p.correctText}`;
   }
   document.getElementById('pr-pts').textContent = isCorrect ? `+${p.gained}` : '+0';
   document.getElementById('pr-total').textContent = myScore;

@@ -174,13 +174,17 @@ function advanceQuestion(pin, adminWs) {
   if (!kviz.answers[nextIdx]) kviz.answers[nextIdx] = {};
 
   const q = kviz.questions[nextIdx];
+  const qtype = q.type || 'mc';
+  const opts = qtype === 'tf' ? ['Točno', 'Netočno']
+    : qtype === 'mc' ? (q.options || [q.a, q.b, q.c, q.d].filter(Boolean))
+    : [];
   const payload = {
     qIdx: nextIdx,
     total: kviz.questions.length,
     text: q.text,
-    qtype: q.type || 'mc',
+    qtype,
     openFields: q.openFields || [],
-    answers: { a: q.a, b: q.b, c: q.c || '', d: q.d || '' },
+    options: opts,
     duration: q.duration || kviz.duration,
     startTime: kviz.questionStartTime
   };
@@ -207,7 +211,15 @@ function endQuestion(pin, adminWs) {
   const playerResults = {};
   const answers = kviz.answers[qIdx] || {};
 
-  const isOpen = (q.type || 'mc') === 'open';
+  const qtype = q.type || 'mc';
+  const isOpen = qtype === 'open';
+  const opts = qtype === 'tf' ? ['Točno', 'Netočno']
+    : qtype === 'mc' ? (q.options || [q.a, q.b, q.c, q.d].filter(Boolean))
+    : [];
+  const letters = 'ABCDEFGH';
+  const correctIdx = correct ? correct.charCodeAt(0) - 65 : 0;
+  const correctText = isOpen ? (q.openFields||[]).join(', ') : (opts[correctIdx] || correct || '');
+
   Object.entries(kviz.players).forEach(([pid, player]) => {
     const ans = answers[pid];
     let gained = 0;
@@ -225,7 +237,8 @@ function endQuestion(pin, adminWs) {
     playerResults[pid] = { answer: ans ? ans.answer : null, gained, correct, isCorrect, score: player.score };
   });
 
-  const counts = { A: 0, B: 0, C: 0, D: 0 };
+  const counts = {};
+  opts.forEach((_, i) => { counts[letters[i]] = 0; });
   Object.values(answers).forEach(a => { if (counts[a.answer] !== undefined) counts[a.answer]++; });
 
   const scoreboard = getScoreboard(kviz);
@@ -234,16 +247,13 @@ function endQuestion(pin, adminWs) {
   wss.clients.forEach(c => {
     const cInfo = clients.get(c);
     if (!cInfo || cInfo.pin !== pin) return;
-    const isOpenQ = (q.type || 'mc') === 'open';
     if (cInfo.role === 'player') {
       const res = playerResults[cInfo.playerId] || { answer: null, gained: 0, correct, isCorrect: false, score: kviz.players[cInfo.playerId]?.score || 0 };
-      sendTo(c, { type: 'RESULTS', payload: { ...res, counts, scoreboard, isLast,
-        isOpen: isOpenQ,
-        correctText: isOpenQ ? (q.openFields||[]).join(', ') : q[correct.toLowerCase()], openFields: q.openFields||[] } });
+      sendTo(c, { type: 'RESULTS', payload: { ...res, counts, options: opts, scoreboard, isLast,
+        isOpen, correctText, openFields: q.openFields||[] } });
     } else if (cInfo.role === 'admin') {
-      sendTo(c, { type: 'RESULTS', payload: { correct, counts, scoreboard, isLast, qIdx,
-        isOpen: isOpenQ,
-        correctText: isOpenQ ? (q.openFields||[]).join(', ') : q[correct.toLowerCase()], openFields: q.openFields||[] } });
+      sendTo(c, { type: 'RESULTS', payload: { correct, counts, options: opts, scoreboard, isLast, qIdx,
+        isOpen, correctText, openFields: q.openFields||[] } });
     }
   });
 }
