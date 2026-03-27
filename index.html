@@ -281,7 +281,7 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
     <div id="ar-board"></div>
     <div style="margin-top:1.5rem;display:flex;gap:8px;">
       <button class="btn btn-primary" onclick="ws_send({type:'ADMIN_NEXT'})" id="next-btn">Sljedeće pitanje ▶</button>
-      <button class="btn btn-outline btn-sm" onclick="ws_send({type:'ADMIN_NEXT'});endKvizAdmin()">Završi kviz</button>
+      <button class="btn btn-outline btn-sm" onclick="endKvizAdmin()">Završi kviz</button>
     </div>
   </div>
 </div>
@@ -347,8 +347,8 @@ label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
       <button class="ans-btn qd" id="pqa-d" onclick="submitAns('D')"></button>
     </div>
     <div id="pq-open" class="hidden">
-      <input type="text" id="pq-open-input" placeholder="Upiši odgovor..." style="font-size:1.1rem;margin-bottom:.75rem;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-      <button class="btn btn-primary" onclick="submitOpenAns()">Potvrdi odgovor ✓</button>
+      <div id="pq-open-fields"></div>
+      <button class="btn btn-primary" onclick="submitOpenAns()" style="margin-top:.5rem;">Potvrdi odgovore ✓</button>
     </div>
   </div>
 </div>
@@ -515,17 +515,17 @@ function switchTab(tab, btn) {
 }
 
 function renderEditor() {
-  const list = document.getElementById('q-list');
-  list.innerHTML = '';
-  editorQs.forEach((q, i) => {
-    const ls = ['A','B','C','D'], ks = ['a','b','c','d'];
+  const ls = ['A','B','C','D'], ks = ['a','b','c','d'];
+  const html = editorQs.map((q, i) => {
     const isMC = (q.type || 'mc') === 'mc';
-    // Za open - polja su array, prikazi jedno po jedno + gumb za dodavanje
     const openFields = q.openFields || [''];
+    const blankCount = (q.text || '').split('___').length - 1;
+    const mismatchWarn = (!isMC && blankCount > 0 && blankCount !== openFields.length)
+      ? `<div style="color:var(--amber);font-size:.8rem;margin-bottom:.5rem;">⚠️ Broj ___ (${blankCount}) ne odgovara broju točnih odgovora (${openFields.length})!</div>` : '';
     const openInputs = openFields.map((val, fi) => `
       <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
         <input type="text" value="${esc(val)}" placeholder="Točna riječ/odgovor ${fi+1}"
-          oninput="editorQs[${i}].openFields[${fi}]=this.value"
+          oninput="editorQs[${i}].openFields[${fi}]=this.value;document.getElementById('mismatch-${i}').innerHTML=getMismatchWarn(${i})"
           style="margin-bottom:0;flex:1;">
         ${openFields.length > 1 ? `<button onclick="editorQs[${i}].openFields.splice(${fi},1);renderEditor()" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:.4rem .7rem;cursor:pointer;font-size:.85rem;">✕</button>` : ''}
       </div>`).join('');
@@ -533,6 +533,7 @@ function renderEditor() {
       <label>Točni odgovori (svaki u posebnom polju)</label>
       ${openInputs}
       <button onclick="editorQs[${i}].openFields=editorQs[${i}].openFields||[''];editorQs[${i}].openFields.push('');renderEditor()" style="background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:.4rem .9rem;cursor:pointer;font-size:.85rem;margin-bottom:.75rem;">+ Dodaj polje</button>
+      <div id="mismatch-${i}">${mismatchWarn}</div>
       <div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem;">⚠️ Tolerira: veliko/malo slovo, č/ć→c, š→s, ž→z, ije/je — Igrač mora ispuniti SVA polja točno</div>`;
     const mcSection = `
       <div class="ans-inputs">
@@ -546,7 +547,7 @@ function renderEditor() {
       <div class="correct-sel">
         ${ls.map(l=>`<button class="c-btn${(q.correct||'A')===l?' sel':''}" onclick="setCorrect(${i},'${l}')">${l}</button>`).join('')}
       </div>`;
-    list.innerHTML += `
+    return `
       <div class="q-editor">
         <div class="q-editor-hd">
           <span>Pitanje ${i+1}</span>
@@ -559,12 +560,21 @@ function renderEditor() {
           </div>
         </div>
         <label>Tekst pitanja</label>
-        <input type="text" value="${esc(q.text||'')}" placeholder="Upiši pitanje (npr. Napiši tri mora u Hrvatskoj: ___, ___, ___)" oninput="editorQs[${i}].text=this.value">
+        <input type="text" value="${esc(q.text||'')}" placeholder="Upiši pitanje (npr. Napiši tri mora u Hrvatskoj: ___, ___, ___)" oninput="editorQs[${i}].text=this.value;if(!editorQs[${i}].type||editorQs[${i}].type==='open')document.getElementById('mismatch-${i}').innerHTML=getMismatchWarn(${i})">
         <label>Trajanje (sekundi)</label>
         <input type="number" value="${q.duration||60}" min="10" max="300" style="margin-bottom:.75rem;" oninput="editorQs[${i}].duration=parseInt(this.value)||60">
         ${isMC ? mcSection : openSection}
       </div>`;
-  });
+  }).join('');
+  document.getElementById('q-list').innerHTML = html;
+}
+
+function getMismatchWarn(i) {
+  const q = editorQs[i];
+  const blankCount = (q.text || '').split('___').length - 1;
+  const fieldCount = (q.openFields || []).length;
+  return (blankCount > 0 && blankCount !== fieldCount)
+    ? `<div style="color:var(--amber);font-size:.8rem;margin-bottom:.5rem;">⚠️ Broj ___ (${blankCount}) ne odgovara broju točnih odgovora (${fieldCount})!</div>` : '';
 }
 
 function addQ() {
@@ -583,6 +593,12 @@ function createKviz() {
     return !!(q.a && q.b);
   });
   if (!qs.length) { setMsg('setup-msg','Dodaj barem jedno pitanje! (Višestruki: treba A i B. Nadopunjavanje: treba barem jedan točan odgovor.)','err'); return; }
+  const mismatch = qs.find(q => {
+    if ((q.type||'mc') !== 'open') return false;
+    const blanks = (q.text||'').split('___').length - 1;
+    return blanks > 0 && blanks !== (q.openFields||[]).length;
+  });
+  if (mismatch) { setMsg('setup-msg','Greška: broj ___ ne odgovara broju točnih odgovora u jednom od pitanja!','err'); return; }
   role = 'admin';
   ws_send({ type:'ADMIN_CREATE', payload:{
     title: document.getElementById('quiz-title').value.trim()||'Kviz',
@@ -611,7 +627,8 @@ function showAdminQ(p) {
     document.getElementById('aqa-d').textContent = 'D: '+(p.answers.d||'');
   }
   show('admin-question');
-  startTimer('aq', p.duration);
+  const aqElapsed = Math.max(0, (Date.now() - (p.startTime || Date.now())) / 1000);
+  startTimer('aq', Math.max(1, p.duration - aqElapsed));
 }
 
 function showAdminResults(p) {
@@ -652,25 +669,54 @@ function joinKviz() {
 function showPlayerQ(p) {
   document.getElementById('pq-num').textContent = p.qIdx+1;
   document.getElementById('pq-tot').textContent = p.total;
-  document.getElementById('pq-q').textContent = p.text;
   document.getElementById('pq-score').textContent = myScore + ' bodova';
   document.getElementById('pq-prog').style.width = `${((p.qIdx+1)/p.total)*100}%`;
+
   if (p.qtype === 'open') {
     document.getElementById('pq-mc').classList.add('hidden');
     document.getElementById('pq-open').classList.remove('hidden');
     const fields = p.openFields || [''];
-    document.getElementById('pq-open-fields').innerHTML = fields.map((_, fi) => `
-      <div style="margin-bottom:8px;">
-        <label style="font-size:.8rem;color:var(--muted);margin-bottom:4px;display:block;">Odgovor ${fi+1}</label>
-        <input type="text" id="pq-open-${fi}" placeholder="Upiši odgovor ${fi+1}..."
-          style="font-size:1rem;margin-bottom:0;"
-          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          onkeydown="if(event.key==='Enter'){document.getElementById('pq-open-${fi+1}')?document.getElementById('pq-open-${fi+1}').focus():submitOpenAns()}">
-      </div>`).join('');
-    setTimeout(() => { const f = document.getElementById('pq-open-0'); if(f) f.focus(); }, 100);
+    const parts = p.text.split('___');
+
+    if (parts.length > 1) {
+      // Inline inputi unutar rečenice
+      document.getElementById('pq-q').textContent = '';
+      let html = '<div style="font-family:Syne,sans-serif;font-size:1.25rem;font-weight:700;text-align:center;line-height:2.8;margin-bottom:1rem;">';
+      parts.forEach((part, pi) => {
+        html += `<span>${part}</span>`;
+        if (pi < parts.length - 1) {
+          const w = Math.max(80, ((fields[pi] || '').length * 14) + 40);
+          html += `<input type="text" id="pq-open-${pi}"
+            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+            style="display:inline-block;width:${w}px;font-size:1rem;font-family:'DM Sans',sans-serif;
+              text-align:center;padding:.2rem .5rem;margin:0 3px;
+              background:var(--surface2);border:2px solid var(--accent);
+              border-radius:8px;color:var(--text);outline:none;vertical-align:middle;"
+            onkeydown="if(event.key==='Enter'){var nx=document.getElementById('pq-open-${pi+1}');if(nx)nx.focus();else submitOpenAns();}"
+            oninput="this.style.borderColor='var(--accent)'"
+          >`;
+        }
+      });
+      html += '</div>';
+      document.getElementById('pq-open-fields').innerHTML = html;
+    } else {
+      // Nema ___ - prikaži tekst normalno i polja ispod
+      document.getElementById('pq-q').textContent = p.text;
+      document.getElementById('pq-open-fields').innerHTML = fields.map((f, fi) => `
+        <div style="margin-bottom:8px;">
+          <label style="font-size:.8rem;color:var(--muted);margin-bottom:4px;display:block;">Odgovor ${fi+1}</label>
+          <input type="text" id="pq-open-${fi}" placeholder="Upiši odgovor ${fi+1}..."
+            style="font-size:1rem;margin-bottom:0;"
+            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+            onkeydown="if(event.key==='Enter'){var nx=document.getElementById('pq-open-${fi+1}');if(nx)nx.focus();else submitOpenAns();}">
+        </div>`).join('');
+    }
+    setTimeout(() => { var f = document.getElementById('pq-open-0'); if(f) f.focus(); }, 150);
+
   } else {
     document.getElementById('pq-mc').classList.remove('hidden');
     document.getElementById('pq-open').classList.add('hidden');
+    document.getElementById('pq-q').textContent = p.text;
     document.getElementById('pqa-a').textContent = 'A: '+p.answers.a;
     document.getElementById('pqa-b').textContent = 'B: '+p.answers.b;
     document.getElementById('pqa-c').textContent = 'C: '+(p.answers.c||'');
@@ -681,7 +727,8 @@ function showPlayerQ(p) {
     });
   }
   show('player-question');
-  startTimer('pq', p.duration);
+  const pqElapsed = Math.max(0, (Date.now() - (p.startTime || Date.now())) / 1000);
+  startTimer('pq', Math.max(1, p.duration - pqElapsed));
 }
 
 function submitAns(letter) {
@@ -700,7 +747,7 @@ function submitAns(letter) {
 function submitOpenAns() {
   if (myAnswered) return;
   // Sakupi sve inpute
-  const inputs = document.querySelectorAll('[id^="pq-open-"]');
+  const inputs = document.querySelectorAll('input[id^="pq-open-"]');
   const vals = Array.from(inputs).map(inp => inp.value.trim());
   if (vals.some(v => !v)) {
     // Naglasi prazna polja
@@ -718,20 +765,6 @@ function submitOpenAns() {
   document.getElementById('pw-icon').textContent = '✅';
   document.getElementById('pw-title').textContent = 'Odgovorio/la si!';
   document.getElementById('pw-msg').textContent = `Upisao/la si ${vals.length} odgovora — Čekam rezultate...`;
-  show('player-waiting');
-}
-
-function submitOpenAns() {
-  if (myAnswered) return;
-  const val = document.getElementById('pq-open-input').value.trim();
-  if (!val) return;
-  myAnswered = true; myAnswer = val;
-  stopTimer();
-  document.getElementById('pq-open-input').disabled = true;
-  ws_send({ type:'PLAYER_ANSWER', payload:{ answer: val } });
-  document.getElementById('pw-icon').textContent = '✅';
-  document.getElementById('pw-title').textContent = 'Odgovorio/la si!';
-  document.getElementById('pw-msg').textContent = `Odgovor: "${val}" — Čekam rezultate...`;
   show('player-waiting');
 }
 
@@ -758,10 +791,14 @@ function showPlayerResult(p) {
 function showPlayerFinal(p) {
   const board = p.scoreboard || [];
   const myIdx = board.findIndex(x => x.name === playerName);
-  const rank = myIdx + 1;
   const medals = ['🥇','🥈','🥉'];
-  document.getElementById('pf-medal').textContent = medals[myIdx] || '🏅';
-  document.getElementById('pf-place').textContent = `${rank}. mjesto!`;
+  if (myIdx >= 0) {
+    document.getElementById('pf-medal').textContent = medals[myIdx] || '🏅';
+    document.getElementById('pf-place').textContent = `${myIdx + 1}. mjesto!`;
+  } else {
+    document.getElementById('pf-medal').textContent = '🏅';
+    document.getElementById('pf-place').textContent = 'Kviz završen!';
+  }
   document.getElementById('pf-name').textContent = playerName;
   document.getElementById('pf-score').textContent = myScore;
   document.getElementById('pf-board').innerHTML = renderBoard(board, 10);

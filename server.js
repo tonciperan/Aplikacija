@@ -185,7 +185,7 @@ function advanceQuestion(pin, adminWs) {
     startTime: kviz.questionStartTime
   };
 
-  broadcast(pin, { type: 'QUESTION', payload });
+  broadcast(pin, { type: 'QUESTION', payload }, adminWs);
   sendTo(adminWs, { type: 'QUESTION', payload });
 
   const qDuration = q.duration || kviz.duration;
@@ -239,11 +239,11 @@ function endQuestion(pin, adminWs) {
       const res = playerResults[cInfo.playerId] || { answer: null, gained: 0, correct, isCorrect: false, score: kviz.players[cInfo.playerId]?.score || 0 };
       sendTo(c, { type: 'RESULTS', payload: { ...res, counts, scoreboard, isLast,
         isOpen: isOpenQ,
-        correctText: isOpenQ ? (q.answers || '') : q[correct.toLowerCase()] } });
+        correctText: isOpenQ ? (q.openFields||[]).join(', ') : q[correct.toLowerCase()], openFields: q.openFields||[] } });
     } else if (cInfo.role === 'admin') {
       sendTo(c, { type: 'RESULTS', payload: { correct, counts, scoreboard, isLast, qIdx,
         isOpen: isOpenQ,
-        correctText: isOpenQ ? (q.answers || '') : q[correct.toLowerCase()] } });
+        correctText: isOpenQ ? (q.openFields||[]).join(', ') : q[correct.toLowerCase()], openFields: q.openFields||[] } });
     }
   });
 }
@@ -253,7 +253,7 @@ function endKviz(pin, adminWs) {
   if (!kviz) return;
   kviz.status = 'final';
   const scoreboard = getScoreboard(kviz);
-  broadcast(pin, { type: 'FINAL', payload: { scoreboard } });
+  broadcast(pin, { type: 'FINAL', payload: { scoreboard } }, adminWs);
   sendTo(adminWs, { type: 'FINAL', payload: { scoreboard } });
   setTimeout(() => delete kvizovi[pin], 3600000);
 }
