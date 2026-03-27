@@ -520,6 +520,8 @@ function renderEditor() {
         </div>
         <label>Tekst pitanja</label>
         <input type="text" value="${esc(q.text)}" placeholder="Upiši pitanje..." oninput="editorQs[${i}].text=this.value">
+        <label>Trajanje (sekundi)</label>
+        <input type="number" value="${q.duration||60}" min="10" max="300" style="margin-bottom:.75rem;" oninput="editorQs[${i}].duration=parseInt(this.value)||60">
         <div class="ans-inputs">
           ${ks.map((k,j)=>`
             <div class="ans-wrap">
@@ -567,7 +569,7 @@ function showAdminQ(p) {
   document.getElementById('aq-ans-cnt').textContent = '0 odgovora';
   document.getElementById('aq-prog').style.width = `${((p.qIdx+1)/p.total)*100}%`;
   show('admin-question');
-  startTimer('aq', p.duration, Date.now());
+  startTimer('aq', p.duration, p.startTime);
 }
 
 function showAdminResults(p) {
@@ -614,7 +616,7 @@ function showPlayerQ(p) {
     b.disabled = false; b.classList.remove('selected','correct','wrong');
   });
   show('player-question');
-  startTimer('pq', p.duration, Date.now());
+  startTimer('pq', p.duration, p.startTime);
 }
 
 function submitAns(letter) {
