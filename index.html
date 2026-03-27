@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveKviz</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08080f;--surface:#111120;--surface2:#181830;
+  --border:rgba(255,255,255,0.07);--text:#eeeefc;--muted:rgba(220,220,255,0.45);
+  --accent:#7c6fff;--accent2:#ff6b8a;--green:#00e676;--amber:#ffb300;--red:#ff5252;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);
+  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;}
+#app{width:100%;max-width:860px;}
+.screen{display:none}.screen.active{display:block}
+h1,h2,h3{font-family:'Syne',sans-serif}
+
+/* LOGO */
+.logo{font-family:'Syne',sans-serif;font-size:3.5rem;font-weight:800;
+  background:linear-gradient(130deg,#7c6fff 0%,#ff6b8a 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.tagline{color:var(--muted);margin-bottom:2.5rem;font-size:1.05rem;}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2rem;margin-bottom:1rem;}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:.85rem 1.8rem;border-radius:12px;border:none;
+  font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:500;cursor:pointer;transition:all .15s;}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#fff;width:100%}
+.btn-primary:hover{background:#8d85ff}
+.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border);width:100%}
+.btn-outline:hover{background:var(--surface2)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-sm{padding:.5rem 1rem;font-size:.875rem;width:auto}
+.btn-green{background:var(--green);color:#000}
+
+/* INPUTS */
+input,textarea,select{
+  width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  color:var(--text);font-family:'DM Sans',sans-serif;font-size:1rem;
+  padding:.75rem 1rem;margin-bottom:.75rem;outline:none;transition:border .15s;}
+input:focus,textarea:focus{border-color:var(--accent)}
+label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:.3rem}
+
+/* PIN */
+.pin-badge{
+  display:block;background:var(--surface2);border:2px solid var(--accent);border-radius:16px;
+  padding:1rem 2rem;font-family:'Syne',sans-serif;font-size:3rem;font-weight:800;
+  letter-spacing:.2em;color:var(--accent);text-align:center;margin:1rem auto;}
+
+/* PLAYER CHIPS */
+.player-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
+  gap:10px;margin-top:1rem;max-height:280px;overflow-y:auto;}
+.player-chip{background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:.55rem .9rem;font-size:.875rem;text-align:center;animation:pop .3s ease;}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* TIMER */
+.timer-wrap{display:flex;justify-content:center;margin-bottom:1.5rem}
+.timer-ring{transform:rotate(-90deg)}
+.tbg{fill:none;stroke:var(--surface2);stroke-width:8}
+.tarc{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round;
+  transition:stroke-dashoffset 1s linear,stroke .4s}
+.ttxt{font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;
+  fill:var(--text);text-anchor:middle;dominant-baseline:central}
+
+/* QUESTION */
+.q-text{font-family:'Syne',sans-serif;font-size:1.55rem;font-weight:700;
+  text-align:center;margin-bottom:1.8rem;line-height:1.35}
+.ans-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ans-btn{padding:1.2rem;border-radius:14px;border:2px solid transparent;
+  font-family:'DM Sans',sans-serif;font-size:1rem;font-weight:500;
+  cursor:pointer;transition:all .15s;text-align:center}
+.ans-btn:active{transform:scale(.97)}
+.ans-btn.qa{background:#2d1f70;color:#b8a8ff;border-color:#7c6fff}
+.ans-btn.qb{background:#701f3a;color:#ffaab8;border-color:#ff6b8a}
+.ans-btn.qc{background:#1a6040;color:#9dffc8;border-color:#00e676}
+.ans-btn.qd{background:#604a1a;color:#ffe799;border-color:#ffb300}
+.ans-btn:hover{filter:brightness(1.2)}
+.ans-btn.selected{filter:brightness(1.5);transform:scale(1.03)}
+.ans-btn.correct{background:#00e676!important;color:#000!important;border-color:#00e676!important}
+.ans-btn.wrong{background:#ff5252!important;color:#fff!important;opacity:.55}
+.ans-btn:disabled{cursor:default}
+
+/* SCOREBOARD */
+.score-row{display:flex;align-items:center;gap:12px;padding:.8rem 1rem;
+  background:var(--surface2);border-radius:12px;margin-bottom:8px;animation:pop .3s ease}
+.s-rank{font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;min-width:32px;color:var(--muted)}
+.s-rank.gold{color:#ffd700}.s-rank.silver{color:#c0c0c0}.s-rank.bronze{color:#cd7f32}
+.s-name{flex:1;font-weight:500}
+.s-pts{font-family:'Syne',sans-serif;font-weight:700;color:var(--accent);font-size:1.05rem}
+
+/* STATUS BAR */
+.status-bar{display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:1.2rem;padding-bottom:1rem;border-bottom:1px solid var(--border)}
+.q-counter{font-size:.875rem;color:var(--muted)}
+.q-counter span{color:var(--text);font-weight:500}
+
+/* PROGRESS */
+.prog-bar{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-bottom:1.5rem}
+.prog-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .5s ease}
+
+/* WAITING */
+.spinner{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin 1s linear infinite;margin:1.5rem auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* TABS */
+.tabs{display:flex;gap:8px;margin-bottom:1.5rem}
+.tab{padding:.5rem 1.2rem;border-radius:8px;border:none;background:var(--surface2);
+  color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.9rem;transition:all .15s}
+.tab.active{background:var(--accent);color:#fff}
+
+/* EDITOR */
+.q-editor{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:1.2rem;margin-bottom:1rem}
+.q-editor-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;
+  font-family:'Syne',sans-serif;font-size:.9rem;color:var(--muted)}
+.ans-inputs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ans-wrap{position:relative}
+.ans-lbl{position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  font-size:.75rem;font-weight:700;color:var(--muted);pointer-events:none}
+.ans-wrap input{padding-left:2rem;margin-bottom:0}
+.correct-sel{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.c-btn{padding:.3rem .8rem;border-radius:8px;border:1px solid var(--border);
+  background:var(--surface);color:var(--muted);font-size:.8rem;cursor:pointer;transition:all .15s}
+.c-btn.sel{background:var(--green);color:#000;border-color:var(--green)}
+
+.alert{padding:.7rem 1rem;border-radius:10px;background:var(--surface2);
+  border:1px solid var(--border);color:var(--muted);font-size:.875rem;margin-bottom:1rem}
+.alert.err{border-color:var(--red);color:var(--red)}
+.alert.ok{border-color:var(--green);color:var(--green)}
+.sec-title{font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:700;margin-bottom:1rem}
+.hidden{display:none!important}
+
+/* Bar chart */
+.bar-wrap{display:flex;gap:10px;align-items:flex-end;height:110px;margin-bottom:1.2rem}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar-cnt{font-size:.8rem;color:var(--muted)}
+.bar-body{width:100%;border-radius:6px 6px 0 0;min-height:6px}
+.bar-lbl{font-size:.85rem;font-weight:500}
+
+/* Connection badge */
+.conn-badge{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted);
+  background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:.3rem .8rem;
+  position:fixed;top:1rem;right:1rem;z-index:99}
+.conn-dot{width:8px;height:8px;border-radius:50%;background:var(--red)}
+.conn-dot.ok{background:var(--green)}
+
+@media(max-width:560px){
+  .ans-grid{grid-template-columns:1fr}
+  .ans-inputs{grid-template-columns:1fr}
+  .logo{font-size:2.5rem}
+  .q-text{font-size:1.25rem}
+}
+</style>
+</head>
+<body>
+
+<div class="conn-badge" id="conn-badge">
+  <div class="conn-dot" id="conn-dot"></div>
+  <span id="conn-txt">Spajam se...</span>
+</div>
+
+<div id="app">
+
+<!-- LANDING -->
+<div id="s-landing" class="screen active">
+  <div style="text-align:center;padding:3rem 1rem;">
+    <div class="logo">LiveKviz</div>
+    <div class="tagline">Kviz u realnom vremenu za cijeli razred</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;max-width:460px;margin:0 auto;">
+      <div class="card" style="text-align:center;">
+        <div style="font-size:2rem;margin-bottom:.5rem;">👨‍🏫</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:.4rem;">Admin</div>
+        <div style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Kreiraj i vodi kviz</div>
+        <button class="btn btn-primary btn-sm" onclick="show('admin-setup')">Pokreni kviz</button>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:2rem;margin-bottom:.5rem;">🎓</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;margin-bottom:.4rem;">Igrač</div>
+        <div style="color:var(--muted);font-size:.85rem;margin-bottom:1rem;">Pridruži se kvizu</div>
+        <button class="btn btn-outline btn-sm" onclick="show('player-join')">Ulogiraj se</button>
+      </div>
+    </div>
+    <div id="server-url-section" style="margin-top:2rem;max-width:460px;margin-left:auto;margin-right:auto;">
+      <div class="alert" style="text-align:left;margin-bottom:.5rem;">
+        ⚙️ <strong>Postavi URL servera</strong> — unesi adresu svog WebSocket servera jednom, pa zaboravi
+      </div>
+      <input type="text" id="server-url-input" placeholder="wss://tvoj-server.onrender.com" style="margin-bottom:.5rem;">
+      <button class="btn btn-outline btn-sm" onclick="saveServerUrl()" style="width:100%;">Spremi URL</button>
+      <div id="url-msg" style="margin-top:.5rem;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN SETUP -->
+<div id="s-admin-setup" class="screen">
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.5rem;">
+      <button onclick="goHome()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;">←</button>
+      <h2>Postavi kviz</h2>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('questions',this)">Pitanja</button>
+      <button class="tab" onclick="switchTab('settings',this)">Postavke</button>
+    </div>
+    <div id="tab-questions">
+      <div id="q-list"></div>
+      <button class="btn btn-outline" onclick="addQ()" style="margin-bottom:1rem;">+ Dodaj pitanje</button>
+    </div>
+    <div id="tab-settings" class="hidden">
+      <label>Naziv kviza</label>
+      <input type="text" id="quiz-title" value="Moj Kviz" placeholder="npr. Uvod u programiranje">
+      <label>Trajanje po pitanju (sekundi)</label>
+      <input type="number" id="q-dur" value="60" min="10" max="300">
+    </div>
+    <button class="btn btn-primary" onclick="createKviz()">🚀 Pokreni kviz i generiraj PIN</button>
+    <div id="setup-msg" style="margin-top:.75rem;"></div>
+  </div>
+</div>
+
+<!-- ADMIN LOBBY -->
+<div id="s-admin-lobby" class="screen">
+  <div class="card">
+    <h2 style="text-align:center;margin-bottom:.4rem;" id="al-title">Kviz</h2>
+    <div style="text-align:center;color:var(--muted);font-size:.9rem;margin-bottom:.4rem;">PIN za pristup:</div>
+    <div class="pin-badge" id="al-pin">------</div>
+    <div style="text-align:center;margin-bottom:1.5rem;">
+      <span id="al-count" style="font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:700;color:var(--green);">0</span>
+      <span style="color:var(--muted);"> igrača čeka</span>
+    </div>
+    <div class="player-grid" id="al-players"></div>
+    <div style="margin-top:1.5rem;display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="ws_send({type:'ADMIN_START'})">▶ Pokreni kviz</button>
+      <button class="btn btn-outline btn-sm" onclick="goHome()">Otkaži</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN QUESTION -->
+<div id="s-admin-question" class="screen">
+  <div class="card">
+    <div class="status-bar">
+      <div class="q-counter">Pitanje <span id="aq-num">1</span> od <span id="aq-tot">5</span></div>
+      <div style="font-size:.875rem;color:var(--muted);" id="aq-ans-cnt">0 odgovora</div>
+    </div>
+    <div class="prog-bar"><div class="prog-fill" id="aq-prog" style="width:0%"></div></div>
+    <div class="timer-wrap">
+      <svg width="100" height="100" viewBox="0 0 100 100" class="timer-ring">
+        <circle cx="50" cy="50" r="42" class="tbg"/>
+        <circle cx="50" cy="50" r="42" class="tarc" id="aq-arc" stroke-dasharray="264" stroke-dashoffset="0"/>
+        <text x="50" y="50" class="ttxt" id="aq-ttxt">60</text>
+      </svg>
+    </div>
+    <div class="q-text" id="aq-q">Pitanje...</div>
+    <div class="ans-grid">
+      <div class="ans-btn qa" id="aqa-a"></div>
+      <div class="ans-btn qb" id="aqa-b"></div>
+      <div class="ans-btn qc" id="aqa-c"></div>
+      <div class="ans-btn qd" id="aqa-d"></div>
+    </div>
+    <div style="margin-top:1.5rem;">
+      <button class="btn btn-outline btn-sm" onclick="ws_send({type:'ADMIN_END_QUESTION'})">⏭ Završi pitanje</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN RESULTS -->
+<div id="s-admin-results" class="screen">
+  <div class="card">
+    <h2 style="margin-bottom:.4rem;" id="ar-q">Rezultati pitanja</h2>
+    <div style="color:var(--green);font-size:.9rem;margin-bottom:1.5rem;" id="ar-correct"></div>
+    <div class="bar-wrap" id="ar-bars"></div>
+    <div class="sec-title">Poredak</div>
+    <div id="ar-board"></div>
+    <div style="margin-top:1.5rem;display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="ws_send({type:'ADMIN_NEXT'})" id="next-btn">Sljedeće pitanje ▶</button>
+      <button class="btn btn-outline btn-sm" onclick="ws_send({type:'ADMIN_NEXT'});endKvizAdmin()">Završi kviz</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN FINAL -->
+<div id="s-admin-final" class="screen">
+  <div class="card" style="text-align:center;">
+    <div style="font-size:3rem;margin-bottom:1rem;">🏆</div>
+    <h2 style="margin-bottom:2rem;">Kviz završen!</h2>
+    <div id="af-board"></div>
+    <button class="btn btn-primary" onclick="goHome()" style="margin-top:1.5rem;">Nova igra</button>
+  </div>
+</div>
+
+<!-- PLAYER JOIN -->
+<div id="s-player-join" class="screen">
+  <div class="card" style="max-width:400px;margin:0 auto;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.5rem;">
+      <button onclick="goHome()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;">←</button>
+      <h2>Pridruži se kvizu</h2>
+    </div>
+    <label>Tvoje ime</label>
+    <input type="text" id="p-name" placeholder="npr. Ana" maxlength="20">
+    <label>PIN kviza</label>
+    <input type="text" id="p-pin" placeholder="6-znamenkasti PIN" maxlength="6" oninput="this.value=this.value.replace(/\D/g,'')">
+    <button class="btn btn-primary" onclick="joinKviz()">Uđi u kviz →</button>
+    <div id="join-msg" style="margin-top:.75rem;"></div>
+  </div>
+</div>
+
+<!-- PLAYER LOBBY -->
+<div id="s-player-lobby" class="screen">
+  <div class="card" style="max-width:400px;margin:0 auto;text-align:center;">
+    <div style="font-size:2rem;margin-bottom:1rem;">⏳</div>
+    <h2 id="pl-title">Čekam...</h2>
+    <div class="spinner"></div>
+    <div style="color:var(--muted);margin-bottom:.5rem;">Pozdrav, <span id="pl-name" style="color:var(--text);font-weight:500;"></span>!</div>
+    <div style="color:var(--muted);font-size:.85rem;">Admin će uskoro pokrenuti kviz</div>
+    <div style="margin-top:1rem;color:var(--muted);font-size:.8rem;" id="pl-count"></div>
+  </div>
+</div>
+
+<!-- PLAYER QUESTION -->
+<div id="s-player-question" class="screen">
+  <div class="card">
+    <div class="status-bar">
+      <div class="q-counter">Pitanje <span id="pq-num">1</span> od <span id="pq-tot">5</span></div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--accent);" id="pq-score">0 bodova</div>
+    </div>
+    <div class="prog-bar"><div class="prog-fill" id="pq-prog" style="width:0%"></div></div>
+    <div class="timer-wrap">
+      <svg width="100" height="100" viewBox="0 0 100 100" class="timer-ring">
+        <circle cx="50" cy="50" r="42" class="tbg"/>
+        <circle cx="50" cy="50" r="42" class="tarc" id="pq-arc" stroke-dasharray="264" stroke-dashoffset="0"/>
+        <text x="50" y="50" class="ttxt" id="pq-ttxt">60</text>
+      </svg>
+    </div>
+    <div class="q-text" id="pq-q">Pitanje...</div>
+    <div class="ans-grid" id="pq-answers">
+      <button class="ans-btn qa" id="pqa-a" onclick="submitAns('A')"></button>
+      <button class="ans-btn qb" id="pqa-b" onclick="submitAns('B')"></button>
+      <button class="ans-btn qc" id="pqa-c" onclick="submitAns('C')"></button>
+      <button class="ans-btn qd" id="pqa-d" onclick="submitAns('D')"></button>
+    </div>
+  </div>
+</div>
+
+<!-- PLAYER WAITING -->
+<div id="s-player-waiting" class="screen">
+  <div class="card" style="max-width:400px;margin:0 auto;text-align:center;">
+    <div style="font-size:2.5rem;margin-bottom:1rem;" id="pw-icon">✅</div>
+    <h2 id="pw-title">Odgovorio/la si!</h2>
+    <div style="color:var(--muted);margin-top:.5rem;" id="pw-msg">Čekam ostale igrače...</div>
+    <div class="spinner" style="margin-top:1.5rem;"></div>
+  </div>
+</div>
+
+<!-- PLAYER RESULT -->
+<div id="s-player-result" class="screen">
+  <div class="card" style="max-width:400px;margin:0 auto;text-align:center;">
+    <div style="font-size:2.5rem;margin-bottom:1rem;" id="pr-icon">🎉</div>
+    <h2 id="pr-title">Točno!</h2>
+    <div style="margin:1rem 0;">
+      <div style="color:var(--muted);font-size:.85rem;">Bodovi za ovo pitanje</div>
+      <div style="font-family:'Syne',sans-serif;font-size:2.5rem;font-weight:800;color:var(--green);" id="pr-pts">+100</div>
+    </div>
+    <div style="color:var(--muted);font-size:.85rem;">Ukupno bodova</div>
+    <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:700;color:var(--accent);" id="pr-total">100</div>
+    <div style="color:var(--muted);margin-top:1.5rem;font-size:.85rem;">Čekam sljedeće pitanje...</div>
+  </div>
+</div>
+
+<!-- PLAYER FINAL -->
+<div id="s-player-final" class="screen">
+  <div class="card" style="max-width:420px;margin:0 auto;text-align:center;">
+    <div style="font-size:3rem;margin-bottom:1rem;" id="pf-medal">🏅</div>
+    <h2 id="pf-place">Završio/la si!</h2>
+    <div style="color:var(--muted);margin-bottom:1.5rem;" id="pf-name"></div>
+    <div style="font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;color:var(--accent);" id="pf-score">0</div>
+    <div style="color:var(--muted);font-size:.85rem;margin-bottom:1.5rem;">bodova</div>
+    <div id="pf-board" style="text-align:left;"></div>
+    <button class="btn btn-primary" onclick="goHome()" style="margin-top:1.5rem;">Natrag na početak</button>
+  </div>
+</div>
+
+</div><!-- #app -->
+
+<script>
+// ===== CONFIG =====
+let SERVER_URL = localStorage.getItem('kviz_server_url') || '';
+if (SERVER_URL) document.getElementById('server-url-input').value = SERVER_URL;
+
+function saveServerUrl() {
+  const val = document.getElementById('server-url-input').value.trim();
+  if (!val) { setMsg('url-msg','Unesi URL!','err'); return; }
+  SERVER_URL = val;
+  localStorage.setItem('kviz_server_url', val);
+  setMsg('url-msg','Spremljeno! ✓','ok');
+  initWS();
+}
+
+// ===== STATE =====
+let ws = null, wsReady = false;
+let role = null, playerId = null, playerName = null;
+let myScore = 0, myAnswered = false, myAnswer = null;
+let timerInt = null, timerVal = 0, timerDur = 60;
+let qTotal = 0, qIdx = 0;
+let editorQs = [{ text:'', a:'', b:'', c:'', d:'', correct:'A' }];
+
+// ===== WEBSOCKET =====
+function initWS() {
+  if (!SERVER_URL) return;
+  if (ws) { ws.onclose = null; ws.close(); }
+  ws = new WebSocket(SERVER_URL);
+  ws.onopen = () => { wsReady = true; setConn(true); };
+  ws.onclose = () => { wsReady = false; setConn(false); setTimeout(initWS, 3000); };
+  ws.onerror = () => { wsReady = false; setConn(false); };
+  ws.onmessage = (e) => { try { handle(JSON.parse(e.data)); } catch(err){} };
+}
+
+function ws_send(obj) {
+  if (ws && wsReady) ws.send(JSON.stringify(obj));
+}
+
+function setConn(ok) {
+  document.getElementById('conn-dot').className = 'conn-dot' + (ok?' ok':'');
+  document.getElementById('conn-txt').textContent = ok ? 'Spojeno' : 'Spajam...';
+}
+
+// ===== MESSAGE HANDLER =====
+function handle(msg) {
+  const { type, payload } = msg;
+
+  if (type === 'ADMIN_CREATED') {
+    document.getElementById('al-pin').textContent = payload.pin;
+    document.getElementById('al-title').textContent = payload.title;
+    document.getElementById('al-count').textContent = '0';
+    document.getElementById('al-players').innerHTML = '';
+    show('admin-lobby');
+  }
+  else if (type === 'LOBBY_UPDATE') {
+    if (role === 'admin') {
+      const players = payload.players || [];
+      document.getElementById('al-count').textContent = players.length;
+      document.getElementById('al-players').innerHTML = players.map(n =>
+        `<div class="player-chip">${esc(n)}</div>`).join('');
+    } else {
+      const players = payload.players || [];
+      document.getElementById('pl-count').textContent = players.length + ' igrača u lobbyju';
+    }
+  }
+  else if (type === 'JOINED') {
+    document.getElementById('pl-name').textContent = payload.name || playerName;
+    document.getElementById('pl-title').textContent = payload.title || 'Kviz';
+    qTotal = payload.questionCount || 0;
+    timerDur = payload.duration || 60;
+    show('player-lobby');
+  }
+  else if (type === 'QUESTION') {
+    qIdx = payload.qIdx;
+    qTotal = payload.total;
+    timerDur = payload.duration;
+    myAnswered = false; myAnswer = null;
+
+    if (role === 'admin') showAdminQ(payload);
+    else showPlayerQ(payload);
+  }
+  else if (type === 'ANSWER_COUNT') {
+    document.getElementById('aq-ans-cnt').textContent = payload.count + ' odgovora';
+  }
+  else if (type === 'RESULTS') {
+    stopTimer();
+    if (role === 'admin') showAdminResults(payload);
+    else showPlayerResult(payload);
+  }
+  else if (type === 'FINAL') {
+    stopTimer();
+    if (role === 'admin') {
+      document.getElementById('af-board').innerHTML = renderBoard(payload.scoreboard);
+      show('admin-final');
+    } else {
+      showPlayerFinal(payload);
+    }
+  }
+  else if (type === 'ERROR') {
+    setMsg('join-msg', payload, 'err');
+    setMsg('setup-msg', payload, 'err');
+  }
+}
+
+// ===== SCREENS =====
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+}
+function goHome() { stopTimer(); role = null; show('landing'); }
+
+// ===== ADMIN SETUP =====
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-questions').classList.toggle('hidden', tab !== 'questions');
+  document.getElementById('tab-settings').classList.toggle('hidden', tab !== 'settings');
+}
+
+function renderEditor() {
+  const list = document.getElementById('q-list');
+  list.innerHTML = '';
+  editorQs.forEach((q, i) => {
+    const ls = ['A','B','C','D'], ks = ['a','b','c','d'];
+    list.innerHTML += `
+      <div class="q-editor">
+        <div class="q-editor-hd">
+          <span>Pitanje ${i+1}</span>
+          ${editorQs.length>1 ? `<button class="btn btn-danger btn-sm" onclick="rmQ(${i})">Obriši</button>` : ''}
+        </div>
+        <label>Tekst pitanja</label>
+        <input type="text" value="${esc(q.text)}" placeholder="Upiši pitanje..." oninput="editorQs[${i}].text=this.value">
+        <div class="ans-inputs">
+          ${ks.map((k,j)=>`
+            <div class="ans-wrap">
+              <span class="ans-lbl">${ls[j]}</span>
+              <input type="text" value="${esc(q[k])}" placeholder="Odgovor ${ls[j]}" oninput="editorQs[${i}].${k}=this.value">
+            </div>`).join('')}
+        </div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:6px;margin-bottom:4px;">Točan odgovor:</div>
+        <div class="correct-sel">
+          ${ls.map(l=>`<button class="c-btn${q.correct===l?' sel':''}" onclick="setCorrect(${i},'${l}')">${l}</button>`).join('')}
+        </div>
+      </div>`;
+  });
+}
+
+function addQ() {
+  editorQs.push({text:'',a:'',b:'',c:'',d:'',correct:'A'});
+  renderEditor();
+  setTimeout(()=>document.getElementById('q-list').lastElementChild.scrollIntoView({behavior:'smooth'}),50);
+}
+function rmQ(i) { editorQs.splice(i,1); renderEditor(); }
+function setCorrect(i,l) { editorQs[i].correct=l; renderEditor(); }
+
+function createKviz() {
+  if (!wsReady) { setMsg('setup-msg','Nisi spojen na server! Provjeri URL na početnoj stranici.','err'); return; }
+  const qs = editorQs.filter(q => q.text.trim() && q.a && q.b);
+  if (!qs.length) { setMsg('setup-msg','Dodaj barem jedno pitanje s tekstom i odgovorima!','err'); return; }
+  role = 'admin';
+  ws_send({ type:'ADMIN_CREATE', payload:{
+    title: document.getElementById('quiz-title').value.trim()||'Kviz',
+    duration: parseInt(document.getElementById('q-dur').value)||60,
+    questions: qs
+  }});
+}
+
+// ===== ADMIN QUESTION DISPLAY =====
+function showAdminQ(p) {
+  document.getElementById('aq-num').textContent = p.qIdx+1;
+  document.getElementById('aq-tot').textContent = p.total;
+  document.getElementById('aq-q').textContent = p.text;
+  document.getElementById('aqa-a').textContent = 'A: '+p.answers.a;
+  document.getElementById('aqa-b').textContent = 'B: '+p.answers.b;
+  document.getElementById('aqa-c').textContent = 'C: '+(p.answers.c||'');
+  document.getElementById('aqa-d').textContent = 'D: '+(p.answers.d||'');
+  document.getElementById('aq-ans-cnt').textContent = '0 odgovora';
+  document.getElementById('aq-prog').style.width = `${((p.qIdx+1)/p.total)*100}%`;
+  show('admin-question');
+  startTimer('aq', p.duration, p.startTime);
+}
+
+function showAdminResults(p) {
+  document.getElementById('ar-q').textContent = 'Rezultati pitanja ' + (p.qIdx+1);
+  document.getElementById('ar-correct').textContent = `✓ Točan odgovor: ${p.correct} — ${p.correctText}`;
+  const colors = {A:'#7c6fff',B:'#ff6b8a',C:'#00e676',D:'#ffb300'};
+  const max = Math.max(...Object.values(p.counts), 1);
+  document.getElementById('ar-bars').innerHTML = ['A','B','C','D'].map(l => `
+    <div class="bar-col">
+      <div class="bar-cnt">${p.counts[l]||0}</div>
+      <div class="bar-body" style="height:${Math.max((p.counts[l]||0)/max*100,5)}%;background:${l===p.correct?'var(--green)':colors[l]};"></div>
+      <div class="bar-lbl" style="color:${l===p.correct?'var(--green)':colors[l]}">${l}</div>
+    </div>`).join('');
+  document.getElementById('ar-board').innerHTML = renderBoard(p.scoreboard, 5);
+  document.getElementById('next-btn').textContent = p.isLast ? '🏆 Završi kviz' : 'Sljedeće pitanje ▶';
+  show('admin-results');
+}
+
+function endKvizAdmin() { ws_send({type:'ADMIN_FORCE_END'}); }
+
+// ===== PLAYER FLOW =====
+function joinKviz() {
+  if (!wsReady) { setMsg('join-msg','Nisi spojen na server!','err'); return; }
+  const name = document.getElementById('p-name').value.trim();
+  const pin  = document.getElementById('p-pin').value.trim();
+  if (!name) { setMsg('join-msg','Upiši svoje ime!','err'); return; }
+  if (pin.length !== 6) { setMsg('join-msg','PIN mora imati 6 znamenki!','err'); return; }
+  role = 'player'; playerName = name; myScore = 0;
+  ws_send({ type:'PLAYER_JOIN', payload:{ pin, name } });
+}
+
+function showPlayerQ(p) {
+  document.getElementById('pq-num').textContent = p.qIdx+1;
+  document.getElementById('pq-tot').textContent = p.total;
+  document.getElementById('pq-q').textContent = p.text;
+  document.getElementById('pqa-a').textContent = 'A: '+p.answers.a;
+  document.getElementById('pqa-b').textContent = 'B: '+p.answers.b;
+  document.getElementById('pqa-c').textContent = 'C: '+(p.answers.c||'');
+  document.getElementById('pqa-d').textContent = 'D: '+(p.answers.d||'');
+  document.getElementById('pq-score').textContent = myScore + ' bodova';
+  document.getElementById('pq-prog').style.width = `${((p.qIdx+1)/p.total)*100}%`;
+  ['a','b','c','d'].forEach(l => {
+    const b = document.getElementById('pqa-'+l);
+    b.disabled = false; b.classList.remove('selected','correct','wrong');
+  });
+  show('player-question');
+  startTimer('pq', p.duration, p.startTime);
+}
+
+function submitAns(letter) {
+  if (myAnswered) return;
+  myAnswered = true; myAnswer = letter;
+  stopTimer();
+  ws_send({ type:'PLAYER_ANSWER', payload:{ answer: letter } });
+  ['a','b','c','d'].forEach(l => document.getElementById('pqa-'+l).disabled = true);
+  document.getElementById('pqa-'+letter.toLowerCase()).classList.add('selected');
+  document.getElementById('pw-icon').textContent = '✅';
+  document.getElementById('pw-title').textContent = 'Odgovorio/la si!';
+  document.getElementById('pw-msg').textContent = `Odgovor: ${letter} — Čekam rezultate...`;
+  show('player-waiting');
+}
+
+function showPlayerResult(p) {
+  const isCorrect = p.answer === p.correct;
+  myScore = p.score;
+  document.getElementById('pr-icon').textContent = isCorrect ? '🎉' : '😔';
+  document.getElementById('pr-title').textContent = isCorrect ? 'Točno!' : `Netočno! Točan: ${p.correct}`;
+  document.getElementById('pr-pts').textContent = isCorrect ? `+${p.gained}` : '+0';
+  document.getElementById('pr-total').textContent = myScore;
+  show('player-result');
+}
+
+function showPlayerFinal(p) {
+  const board = p.scoreboard || [];
+  const myIdx = board.findIndex(x => x.name === playerName);
+  const rank = myIdx + 1;
+  const medals = ['🥇','🥈','🥉'];
+  document.getElementById('pf-medal').textContent = medals[myIdx] || '🏅';
+  document.getElementById('pf-place').textContent = `${rank}. mjesto!`;
+  document.getElementById('pf-name').textContent = playerName;
+  document.getElementById('pf-score').textContent = myScore;
+  document.getElementById('pf-board').innerHTML = renderBoard(board, 10);
+  show('player-final');
+}
+
+// ===== TIMER =====
+function startTimer(prefix, dur, startTime) {
+  stopTimer();
+  const circ = 264;
+  const arc = document.getElementById(prefix+'-arc');
+  const txt = document.getElementById(prefix+'-ttxt');
+  const elapsed = startTime ? Math.max(0,(Date.now()-startTime)/1000) : 0;
+  timerVal = Math.max(0, Math.round(dur - elapsed));
+  timerDur = dur;
+
+  arc.style.stroke = 'var(--accent)';
+  arc.style.strokeDashoffset = circ * (1 - timerVal/dur);
+  txt.textContent = timerVal;
+
+  timerInt = setInterval(() => {
+    timerVal = Math.max(0, timerVal-1);
+    txt.textContent = timerVal;
+    arc.style.strokeDashoffset = circ * (1 - timerVal/dur);
+    if (timerVal <= 10) arc.style.stroke = 'var(--red)';
+    else if (timerVal <= 20) arc.style.stroke = 'var(--amber)';
+    if (timerVal <= 0) {
+      stopTimer();
+      if (role === 'player' && !myAnswered) {
+        myAnswered = true;
+        document.getElementById('pw-icon').textContent = '⏰';
+        document.getElementById('pw-title').textContent = 'Vrijeme je isteklo!';
+        document.getElementById('pw-msg').textContent = 'Nisi odgovorio/la na vrijeme.';
+        show('player-waiting');
+      }
+    }
+  }, 1000);
+}
+function stopTimer() { if (timerInt) { clearInterval(timerInt); timerInt = null; } }
+
+// ===== HELPERS =====
+function renderBoard(arr, limit=20) {
+  const medals = ['🥇','🥈','🥉'];
+  const ranks = ['gold','silver','bronze'];
+  return (arr||[]).slice(0,limit).map((p,i) => `
+    <div class="score-row">
+      <div class="s-rank ${ranks[i]||''}">${medals[i]||(i+1)+'.'}</div>
+      <div class="s-name">${esc(p.name||'Igrač')}</div>
+      <div class="s-pts">${p.score||0} pt</div>
+    </div>`).join('');
+}
+
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function setMsg(id, msg, type) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'alert' + (type ? ' '+type : '');
+  el.textContent = msg;
+}
+
+// ===== INIT =====
+renderEditor();
+if (SERVER_URL) initWS();
+</script>
+</body>
+</html>
