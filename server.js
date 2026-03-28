@@ -124,6 +124,82 @@ wss.on('connection', (ws) => {
       endKviz(info.pin, ws);
     }
 
+    else if (type === 'ADMIN_REJOIN') {
+      const { pin } = payload;
+      const kviz = kvizovi[pin];
+      if (!kviz) { sendTo(ws, { type: 'ERROR', payload: 'Kviz više nije dostupan.' }); return; }
+      clients.set(ws, { pin, role: 'admin' });
+
+      if (kviz.status === 'lobby') {
+        const playerList = Object.values(kviz.players).map(p => p.name);
+        sendTo(ws, { type: 'ADMIN_CREATED', payload: { pin, title: kviz.title } });
+        sendTo(ws, { type: 'LOBBY_UPDATE', payload: { players: playerList } });
+      } else if (kviz.status === 'question') {
+        const q = kviz.questions[kviz.currentQ];
+        const qtype = q.type || 'mc';
+        const opts = qtype === 'tf' ? ['Točno', 'Netočno']
+          : qtype === 'mc' ? (q.options || [q.a, q.b, q.c, q.d].filter(Boolean))
+          : [];
+        const answerCount = Object.keys(kviz.answers[kviz.currentQ] || {}).length;
+        sendTo(ws, { type: 'QUESTION', payload: {
+          qIdx: kviz.currentQ, total: kviz.questions.length,
+          text: q.text, qtype, openFields: q.openFields || [], options: opts,
+          duration: q.duration || kviz.duration, startTime: kviz.questionStartTime
+        }});
+        sendTo(ws, { type: 'ANSWER_COUNT', payload: { count: answerCount } });
+      } else if (kviz.status === 'results') {
+        // Pošalji rezultate posljednjeg pitanja
+        const qIdx = kviz.currentQ;
+        const q = kviz.questions[qIdx];
+        const qtype = q.type || 'mc';
+        const isOpen = qtype === 'open';
+        const opts = qtype === 'tf' ? ['Točno', 'Netočno']
+          : qtype === 'mc' ? (q.options || [q.a, q.b, q.c, q.d].filter(Boolean)) : [];
+        const letters = 'ABCDEFGH';
+        const correctIdx = (q.correct || 'A').charCodeAt(0) - 65;
+        const correctText = isOpen ? (q.openFields||[]).join(', ') : (opts[correctIdx] || q.correct || '');
+        const counts = {};
+        opts.forEach((_, i) => { counts[letters[i]] = 0; });
+        Object.values(kviz.answers[qIdx] || {}).forEach(a => { if (counts[a.answer] !== undefined) counts[a.answer]++; });
+        const isLast = qIdx >= kviz.questions.length - 1;
+        sendTo(ws, { type: 'RESULTS', payload: { correct: q.correct, counts, options: opts, scoreboard: getScoreboard(kviz), isLast, qIdx, isOpen, correctText, openFields: q.openFields||[] } });
+      } else if (kviz.status === 'final') {
+        sendTo(ws, { type: 'FINAL', payload: { scoreboard: getScoreboard(kviz) } });
+      }
+    }
+
+    else if (type === 'PLAYER_REJOIN') {
+      const { pin, playerId } = payload;
+      const kviz = kvizovi[pin];
+      if (!kviz || !kviz.players[playerId]) {
+        sendTo(ws, { type: 'ERROR', payload: 'Kviz više nije dostupan. Uđi ponovo.' });
+        return;
+      }
+      clients.set(ws, { pin, role: 'player', playerId, name: kviz.players[playerId].name });
+
+      if (kviz.status === 'lobby') {
+        const playerList = Object.values(kviz.players).map(p => p.name);
+        sendTo(ws, { type: 'JOINED', payload: { playerId, name: kviz.players[playerId].name, title: kviz.title, duration: kviz.duration, questionCount: kviz.questions.length } });
+        sendTo(ws, { type: 'LOBBY_UPDATE', payload: { players: playerList } });
+      } else if (kviz.status === 'question') {
+        const q = kviz.questions[kviz.currentQ];
+        const qtype = q.type || 'mc';
+        const opts = qtype === 'tf' ? ['Točno', 'Netočno']
+          : qtype === 'mc' ? (q.options || [q.a, q.b, q.c, q.d].filter(Boolean))
+          : [];
+        const alreadyAnswered = !!(kviz.answers[kviz.currentQ] && kviz.answers[kviz.currentQ][playerId]);
+        sendTo(ws, { type: 'QUESTION', payload: {
+          qIdx: kviz.currentQ, total: kviz.questions.length,
+          text: q.text, qtype, openFields: q.openFields || [], options: opts,
+          duration: q.duration || kviz.duration, startTime: kviz.questionStartTime,
+          alreadyAnswered
+        }});
+      } else if (kviz.status === 'final') {
+        sendTo(ws, { type: 'FINAL', payload: { scoreboard: getScoreboard(kviz) } });
+      }
+      // status === 'results': rezultati dolaze uskoro, klijent samo čeka
+    }
+
     else if (type === 'PLAYER_ANSWER') {
       const kviz = kvizovi[info.pin];
       if (!kviz || kviz.status !== 'question') return;

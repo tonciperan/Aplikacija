@@ -429,7 +429,7 @@ function saveServerUrl() {
 
 // ===== STATE =====
 let ws = null, wsReady = false;
-let role = null, playerId = null, playerName = null;
+let role = null, playerId = null, playerName = null, playerPin = null, adminPin = null;
 let myScore = 0, myAnswered = false, myAnswer = null;
 let timerInt = null, timerVal = 0, timerDur = 60;
 let qTotal = 0, qIdx = 0;
@@ -455,7 +455,14 @@ function initWS() {
   if (!SERVER_URL) return;
   if (ws) { ws.onclose = null; ws.close(); }
   ws = new WebSocket(SERVER_URL);
-  ws.onopen = () => { wsReady = true; setConn(true); };
+  ws.onopen = () => {
+    wsReady = true; setConn(true);
+    if (role === 'player' && playerId && playerPin) {
+      ws_send({ type: 'PLAYER_REJOIN', payload: { pin: playerPin, playerId, name: playerName } });
+    } else if (role === 'admin' && adminPin) {
+      ws_send({ type: 'ADMIN_REJOIN', payload: { pin: adminPin } });
+    }
+  };
   ws.onclose = () => { wsReady = false; setConn(false); setTimeout(initWS, 3000); };
   ws.onerror = () => { wsReady = false; setConn(false); };
   ws.onmessage = (e) => { try { handle(JSON.parse(e.data)); } catch(err){} };
@@ -475,6 +482,7 @@ function handle(msg) {
   const { type, payload } = msg;
 
   if (type === 'ADMIN_CREATED') {
+    adminPin = payload.pin;
     document.getElementById('al-pin').textContent = payload.pin;
     document.getElementById('al-title').textContent = payload.title;
     document.getElementById('al-count').textContent = '0';
@@ -506,7 +514,16 @@ function handle(msg) {
     myAnswered = false; myAnswer = null;
 
     if (role === 'admin') showAdminQ(payload);
-    else showPlayerQ(payload);
+    else {
+      showPlayerQ(payload);
+      if (payload.alreadyAnswered) {
+        myAnswered = true;
+        document.getElementById('pw-icon').textContent = '✅';
+        document.getElementById('pw-title').textContent = 'Već si odgovorio/la!';
+        document.getElementById('pw-msg').textContent = 'Čekam rezultate...';
+        show('player-waiting');
+      }
+    }
   }
   else if (type === 'ANSWER_COUNT') {
     document.getElementById('aq-ans-cnt').textContent = payload.count + ' odgovora';
@@ -743,7 +760,7 @@ function joinKviz() {
   const pin  = document.getElementById('p-pin').value.trim();
   if (!name) { setMsg('join-msg','Upiši svoje ime!','err'); return; }
   if (pin.length !== 6) { setMsg('join-msg','PIN mora imati 6 znamenki!','err'); return; }
-  role = 'player'; playerName = name; myScore = 0;
+  role = 'player'; playerName = name; playerPin = pin; myScore = 0;
   ws_send({ type:'PLAYER_JOIN', payload:{ pin, name } });
 }
 
