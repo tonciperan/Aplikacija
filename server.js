@@ -196,8 +196,11 @@ wss.on('connection', (ws) => {
         }});
       } else if (kviz.status === 'final') {
         sendTo(ws, { type: 'FINAL', payload: { scoreboard: getScoreboard(kviz) } });
+      } else if (kviz.status === 'results' && kviz.lastResults) {
+        const lr = kviz.lastResults;
+        const res = lr.playerResults[playerId] || { answer: null, gained: 0, correct: lr.correct, isCorrect: false, score: kviz.players[playerId]?.score || 0 };
+        sendTo(ws, { type: 'RESULTS', payload: { ...res, counts: lr.counts, options: lr.options, scoreboard: lr.scoreboard, isLast: lr.isLast, isOpen: lr.isOpen, correctText: lr.correctText, openFields: lr.openFields } });
       }
-      // status === 'results': rezultati dolaze uskoro, klijent samo čeka
     }
 
     else if (type === 'PLAYER_ANSWER') {
@@ -319,6 +322,9 @@ function endQuestion(pin, adminWs) {
 
   const scoreboard = getScoreboard(kviz);
   const isLast = qIdx >= kviz.questions.length - 1;
+
+  // Pohrani za rejoin
+  kviz.lastResults = { correct, counts, options: opts, isLast, qIdx, isOpen, correctText, openFields: q.openFields||[], scoreboard, playerResults };
 
   wss.clients.forEach(c => {
     const cInfo = clients.get(c);
